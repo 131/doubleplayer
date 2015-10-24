@@ -10,7 +10,7 @@ module.exports = function(grunt) {
     },
     pack : {
       files: {
-        'release/doupleplayer.min.js': ['release/doupleplayer.js']
+        'release/doubleplayer.min.js': ['release/doubleplayer.js']
       }
     }
   });
@@ -23,7 +23,7 @@ module.exports = function(grunt) {
 
     pack : {
       files: {
-        'release/doupleplayer.js': ['release/_bootstrap.js']
+        'release/doubleplayer.js': ['release/_bootstrap.js']
       }
     }
   });
