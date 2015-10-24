@@ -10,7 +10,7 @@ module.exports = function(grunt) {
     },
     pack : {
       files: {
-        'release/pack.min.js': ['release/pack.js']
+        'release/doupleplayer.min.js': ['release/doupleplayer.js']
       }
     }
   });
@@ -23,13 +23,14 @@ module.exports = function(grunt) {
 
     pack : {
       files: {
-        'release/pack.js': ['release/_bootstrap.js']
+        'release/doupleplayer.js': ['release/_bootstrap.js']
       }
     }
   });
 
   
   grunt.registerTask('pack', ['browserify', 'uglify']);
+  grunt.registerTask('default', ['pack']);
 
 
   grunt.loadNpmTasks('grunt-contrib-uglify');
