@@ -1,0 +1,33 @@
+{
+  "name": "doubleplayer",
+  "version": "0.1.0",
+  "description": "HTML5 double canvas player",
+  "main": "doubleplayer.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/131/doubleplayer.git"
+  },
+  "keywords": [
+    "html5",
+    "canvas",
+    "mp4"
+  ],
+  "author": "Francois Leurent <131.js@cloudyks.org>",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/131/doubleplayer/issues"
+  },
+  "homepage": "https://github.com/131/doubleplayer",
+  "dependencies": {
+    "uclass": "^2.0.7"
+  },
+  "devDependencies": {
+    "grunt": "^0.4.5",
+    "grunt-browserify": "^3.8.0",
+    "grunt-contrib-uglify": "^0.9.1",
+    "grunt-contrib-watch": "^0.6.1"
+  }
+}
