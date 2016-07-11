@@ -1,29 +1,16 @@
 <html>
-<head><script src="https://code.jquery.com/jquery-1.12.4.js"></script>
-<script src="doubleplayer.js"></script>
+<head>
+  <script src="doubleplayer.min.js">;</script>
 
+  <script>
+  document.addEventListener("DOMContentLoaded", function(){
+    DoublePlayer.start("video.mp4", document.getElementById('container'));
+  });
+  </script>
+</head>
 
-
- <script>
-var video="video.mp4";
-
-$(document).ready(function(){
-    DoublePlayer.start(video, $('#container')[0])
-   // $("#blockLike"+number).css({'background-image':'url('+source[1]+')'});
-
-});
-
-</script>
-
-</head><body >
-
-
-
-
-
+<body >
   <div id="container" style="width: 100%; height: 100%; position: absolute; overflow: hidden;">
-
-
 </div> 
 
 
