@@ -20,13 +20,9 @@ module.exports = DoublePlayer;
 "use strict";
 
 var Class       = require('uclass');
+var $n          = require('udom/element/create');
+var requestAnimationFrame = require('udom/window/requestAnimationFrame');
 
-
-var $n = function(v, r) {
-  var e = document.createElement(v);
-  for(var i in r) e[i] = r[i];
-  return e;
-}
 
 
 var DoubleVideo = new Class({
@@ -37,19 +33,20 @@ var DoubleVideo = new Class({
 
   initialize:function(video_url, container){
 
-    var self = this, video = $n('video');//, {loop:true}
+    var self = this, video = $n('video', {loop:true, autoplay:true});
     console.log('Video src is : ', video_url);
     
-    this.container = $(container);
-    var videos = container[0].getElementsByTagName('video');
-    
-    if (videos[0]){
+    this.container = container;
+    var videos = container.getElementsByTagName('video');
+
+      //pause current video (if any) before looping
+    if (videos.length > 0){
       videos[0].pause();
       videos[0].src = '';
     }
     video.src = '';
   
-    this.container.empty();
+    this.container.innerHTML = "";
 
 
     var ready = false;
@@ -68,24 +65,11 @@ var DoubleVideo = new Class({
         //video.play();
        self.video  = video;
        self.video.id = "Myvideo";
-       //DoublePlayer.video.preload="auto";
        self.video_width = video.videoWidth;
        self.video_height = video.videoHeight;
        self.prepareCanvas();
     });
     
-    video.addEventListener("error", function(error) {
-      var errorLast = "An error occurred playing ";
-      console.error('ERROR : ', error);
-
-      /*video.pause();
-     video.src = '';*/
-                           
-      
-     
-    }, true);
-
-
 
  //leave this to next tick
     requestAnimationFrame(function(){
@@ -98,14 +82,6 @@ var DoubleVideo = new Class({
   prepareCanvas: function() {
     var self = this;
 
-    self.video.addEventListener('ended', function(){
-      console.log("LOOOPING");
-      self.video.pause();
-      self.video.currentTime=0;
-      self.video.play();
-     
-    }, false);
-
 
     var tmp = $n('canvas', {width:self.video_width, height:self.video_height});
     self.canvas_buffer = tmp.getContext("2d");
@@ -113,22 +89,23 @@ var DoubleVideo = new Class({
     self.canvas = $n('canvas', {width:self.video_width / 2, height:self.video_height});
   
 
-    $(self.canvas).css( { width : '100%', height:'100%'});
+    self.canvas.style.width = self.canvas.style.height = '100%';
 
-    self.container.append(self.canvas);
+    self.container.appendChild(self.canvas);
 
     self.canvas_ctx = self.canvas.getContext("2d");
 
     self.delimiter = 0.5;
     self.canvas.addEventListener('mousemove', function(e){
       var x = e.clientX; 
-      x =  x / self.container.width();
+      x =  x / self.container.offsetWidth;
       self.delimiter = x
     }, false);
 
     self.canvas.addEventListener('touchmove', function(e){
       var x = e.touches[0].clientX; 
-      x = x / self.container.width();
+      x = x / self.container.offsetWidth;
+
       self.delimiter = x
 
     }, false);
@@ -149,10 +126,7 @@ var DoubleVideo = new Class({
     }
 
     self.computeFrame();
-
-    return requestAnimationFrame(function () {
-        self.timerCallback();
-      });
+    requestAnimationFrame(self.timerCallback);
   },
 
   computeFrame: function() {
@@ -170,9 +144,6 @@ var DoubleVideo = new Class({
     self.canvas_ctx.putImageData(frame2, x, 0);
     self.canvas_ctx.fillRect (x, 0, 2, self.video_height);
     self.canvas_ctx.fillStyle = "rgba(255,255,255, 1)";
-    self.video.play();
-
-    return;
   }
 });
 
@@ -180,7 +151,7 @@ var DoubleVideo = new Class({
 
 module.exports = DoubleVideo;
 
-},{"uclass":15}],3:[function(require,module,exports){
+},{"uclass":15,"udom/element/create":19,"udom/window/requestAnimationFrame":20}],3:[function(require,module,exports){
 var kindOf = require('./kindOf');
 var isPlainObject = require('./isPlainObject');
 var mixIn = require('../object/mixIn');
@@ -658,4 +629,34 @@ module.exports = uClass;
 },{"mout/lang/createObject":4,"mout/lang/kindOf":9,"mout/object/hasOwn":12,"mout/object/merge":13,"mout/object/mixIn":14}],16:[function(require,module,exports){
 window.DoublePlayer = require('..');
 
-},{"..":1}]},{},[16]);
+},{"..":1}],17:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"./hasOwn":18,"dup":10}],18:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12}],19:[function(require,module,exports){
+"use strict";
+
+var forIn = require('mout/object/forIn');
+
+
+module.exports = function(tagname, attrs){
+  var foo = document.createElement(tagname);
+  forIn(attrs || {} , function(value, attrname) {
+    foo[attrname] = value;
+  });
+
+  return foo;
+}
+},{"mout/object/forIn":17}],20:[function(require,module,exports){
+"use strict";
+
+module.exports = (function(){
+  return  window.requestAnimationFrame       ||
+          window.webkitRequestAnimationFrame ||
+          window.mozRequestAnimationFrame    ||
+          function( callback ){
+            window.setTimeout(callback, 1000 / 60);
+          };
+})();
+
+},{}]},{},[16]);
