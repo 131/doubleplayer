@@ -67,6 +67,7 @@ var DoubleVideo = new Class({
        self.video.id = "Myvideo";
        self.video_width = video.videoWidth;
        self.video_height = video.videoHeight;
+
        self.prepareCanvas();
     });
     

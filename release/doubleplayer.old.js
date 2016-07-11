@@ -1,9 +1,37 @@
-"use strict";
+window.requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame ||
+                              window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+var Class = function(obj){
+  var out = function(){
+    if(obj.Binds) obj.Binds.forEach(function(f){
+      var original = this[f];
+      if(original) this[f] = original.bind(this);
+    }.bind(this));
+    obj.initialize.apply(this, arguments);
+  }
+  out.implements = function(obj){
+    for(var i in obj) {
+      if((typeof obj[i] == 'function') && obj[i].$static)
+        out[i] = obj[i];
+      else
+        out.prototype[i] = obj[i];
+    }
+  }
+  out.implements(obj);
+  return out;
+};
 
-var Class       = require('uclass');
-var $n          = require('udom/element/create');
-var requestAnimationFrame = require('udom/window/requestAnimationFrame');
+$n = function(v, r) {
+  var e = document.createElement(v);
+  for(var i in r) e[i] = r[i];
+  return e;
+}
 
+
+var DoublePlayer = {
+  start : function(video_url, container) {
+    return new DoubleVideo(video_url, container);
+  }
+};
 
 
 var DoubleVideo = new Class({
@@ -14,30 +42,17 @@ var DoubleVideo = new Class({
 
   initialize:function(video_url, container){
 
-    var self = this, video = $n('video', {loop:true, autoplay:true});
-    console.log('Video src is : ', video_url);
-    
-    this.container = container;
-    var videos = container.getElementsByTagName('video');
-
-      //pause current video (if any) before looping
-    if (videos.length > 0){
-      videos[0].pause();
-      videos[0].src = '';
-    }
-    video.src = '';
-  
-    this.container.innerHTML = "";
+    var self = this, video = $n('video' );//, {loop:true}
+    this.container = $(container);
+    this.container.empty();
 
 
     var ready = false;
 
 
     video.addEventListener("loadedmetadata", function(){
-        if(ready){
-          console.log('META DATA ALREADY LOADED !');
+        if(ready)
           return;
-        }
 
         console.log("Loadedd metadata");
 
@@ -46,12 +61,13 @@ var DoubleVideo = new Class({
         //video.play();
        self.video  = video;
        self.video.id = "Myvideo";
+       //DoublePlayer.video.preload="auto";
        self.video_width = video.videoWidth;
        self.video_height = video.videoHeight;
-
        self.prepareCanvas();
     });
-    
+
+
 
  //leave this to next tick
     requestAnimationFrame(function(){
@@ -64,6 +80,14 @@ var DoubleVideo = new Class({
   prepareCanvas: function() {
     var self = this;
 
+    self.video.addEventListener('ended', function(){
+      console.log("LOOOPING");
+      self.video.pause();
+      self.video.currentTime=0;
+      self.video.play();
+     
+    }, false);
+
 
     var tmp = $n('canvas', {width:self.video_width, height:self.video_height});
     self.canvas_buffer = tmp.getContext("2d");
@@ -71,23 +95,22 @@ var DoubleVideo = new Class({
     self.canvas = $n('canvas', {width:self.video_width / 2, height:self.video_height});
   
 
-    self.canvas.style.width = self.canvas.style.height = '100%';
+    $(self.canvas).css( { width : '100%', height:'100%'});
 
-    self.container.appendChild(self.canvas);
+    self.container.append(self.canvas);
 
     self.canvas_ctx = self.canvas.getContext("2d");
 
     self.delimiter = 0.5;
     self.canvas.addEventListener('mousemove', function(e){
       var x = e.clientX; 
-      x =  x / self.container.offsetWidth;
+      x =  x / self.container.width();
       self.delimiter = x
     }, false);
 
     self.canvas.addEventListener('touchmove', function(e){
       var x = e.touches[0].clientX; 
-      x = x / self.container.offsetWidth;
-
+      x = x / self.container.width();
       self.delimiter = x
 
     }, false);
@@ -108,7 +131,10 @@ var DoubleVideo = new Class({
     }
 
     self.computeFrame();
-    requestAnimationFrame(self.timerCallback);
+
+    return requestAnimationFrame(function () {
+        self.timerCallback();
+      });
   },
 
   computeFrame: function() {
@@ -126,9 +152,10 @@ var DoubleVideo = new Class({
     self.canvas_ctx.putImageData(frame2, x, 0);
     self.canvas_ctx.fillRect (x, 0, 2, self.video_height);
     self.canvas_ctx.fillStyle = "rgba(255,255,255, 1)";
+    self.video.play();
+
+    return;
   }
 });
 
 
-
-module.exports = DoubleVideo;
