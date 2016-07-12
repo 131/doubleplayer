@@ -1,6 +1,5 @@
 "use strict";
 
-var Class       = require('uclass');
 var DoubleVideo = require('./doublevideo');
 
 

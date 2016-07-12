@@ -22,7 +22,6 @@
   },
   "homepage": "https://github.com/131/doubleplayer",
   "dependencies": {
-    "uclass": "^2.0.7",
     "udom": "^1.4.1"
   },
   "devDependencies": {

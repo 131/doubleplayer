@@ -26,19 +26,15 @@ var shaderVs = `
 `;
 
 
-var Class       = require('uclass');
 var $n          = require('udom/element/create');
 var requestAnimationFrame = require('udom/window/requestAnimationFrame');
 
-var DoubleVideo = new Class({
-  Binds : ['prepareCanvas', 'timerCallback', 'computeFrame' , 'initWebGL' , 'initBuffers' , 'initShaders'],
+class DoubleVideo {
 
-  container:null,
-  interval:null,
 
-  initialize:function(video_url, container){
+  constructor(video_url, container) {
 
-    var self = this, video = $n('video', {loop:true, autoplay:true});
+    var video = $n('video', {loop:true, autoplay:true});
     console.log('Video src is : ', video_url);
 
     this.container = container;
@@ -57,7 +53,7 @@ var DoubleVideo = new Class({
     var ready = false;
 
 
-    video.addEventListener("loadedmetadata", function(){
+    video.addEventListener("loadedmetadata", () => {
 
         if(ready){
           console.log('META DATA ALREADY LOADED !');
@@ -69,21 +65,20 @@ var DoubleVideo = new Class({
         ready = true;
 
         //video.play();
-       self.video  = video;
-       self.video.id = "Myvideo";
-       self.video_width = video.videoWidth;
-       self.video_height = video.videoHeight;
+       this.video  = video;
+       this.video.id = "Myvideo";
+       this.video_width = video.videoWidth;
+       this.video_height = video.videoHeight;
 
-       var canvas = self.prepareCanvas();
-       var gl = self.initWebGL(canvas);
-       self.initShaders(gl);
-       self.initBuffers(gl);
-       self.gl = gl;
-       self.timerCallback();
-
-
+       var canvas = this.prepareCanvas();
+       var gl = this.initWebGL(canvas);
+       this.initShaders(gl);
+       this.initBuffers(gl);
+       this.gl = gl;
+       this.timerCallback();
     });
 
+    this.timerCallback = this.timerCallback.bind(this);
 
  //leave this to next tick
     requestAnimationFrame(function(){
@@ -91,34 +86,32 @@ var DoubleVideo = new Class({
       //alert(video.src);
       video.play();
     });
-  },
+  }
 
-  initShaders : function(gl) {
-    var self = this;
-
+  initShaders(gl) {
 
     var fragmentShader = this.getShader(gl, shaderFs, gl.FRAGMENT_SHADER);
     var vertexShader = this.getShader(gl, shaderVs, gl.VERTEX_SHADER);
 
 
-    self.shaderProgram = gl.createProgram();
-    gl.attachShader(self.shaderProgram, vertexShader);
-    gl.attachShader(self.shaderProgram, fragmentShader);
-    gl.linkProgram(self.shaderProgram);
+    this.shaderProgram = gl.createProgram();
+    gl.attachShader(this.shaderProgram, vertexShader);
+    gl.attachShader(this.shaderProgram, fragmentShader);
+    gl.linkProgram(this.shaderProgram);
 
 
-    if (!gl.getProgramParameter(self.shaderProgram, gl.LINK_STATUS))
-      throw ("Unable to initialize the shader program: " + gl.getProgramInfoLog(  self.shaderProgram ));
+    if (!gl.getProgramParameter(this.shaderProgram, gl.LINK_STATUS))
+      throw ("Unable to initialize the shader program: " + gl.getProgramInfoLog(  this.shaderProgram ));
 
-    gl.useProgram(self.shaderProgram);
+    gl.useProgram(this.shaderProgram);
 
-    self.vx_ptr = gl.getAttribLocation(self.shaderProgram, "vx");
-    gl.enableVertexAttribArray(self.vx_ptr);
-    gl.uniform1i(gl.getUniformLocation(self.shaderProgram, "sm"), 0);
-  },
+    this.vx_ptr = gl.getAttribLocation(this.shaderProgram, "vx");
+    gl.enableVertexAttribArray(this.vx_ptr);
+    gl.uniform1i(gl.getUniformLocation(this.shaderProgram, "sm"), 0);
+  }
 
 
-  getShader :function(gl, theSource, type) {
+  getShader(gl, theSource, type) {
 
     var shader = gl.createShader(type);
 
@@ -133,10 +126,10 @@ var DoubleVideo = new Class({
     }
 
     return shader;
-  },
+  }
 
 
-  initBuffers: function(gl) {
+  initBuffers(gl) {
 
     // Create a buffer for the square's vertices.
     this.vx = gl.createBuffer();
@@ -154,10 +147,10 @@ var DoubleVideo = new Class({
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S,     gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  },
+  }
 
 
-  initWebGL: function(canvas){
+  initWebGL(canvas){
     var gl = canvas.getContext("experimental-webgl");
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
@@ -165,96 +158,95 @@ var DoubleVideo = new Class({
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     return gl;
-  },
+  }
 
-  prepareCanvas: function() {
-    var self = this;
-    var canvas = $n('canvas', {width:self.video_width / 2, height:self.video_height});
+  prepareCanvas() {
+
+    var canvas = $n('canvas', {width:this.video_width / 2, height:this.video_height});
 
     canvas.style.width = canvas.style.height = '100%';
 
-    self.container.appendChild(canvas);
+    this.container.appendChild(canvas);
 
-    self.delimiter = 0.5;
-    canvas.addEventListener('mousemove', function(e){
+    this.delimiter = 0.5;
+    canvas.addEventListener('mousemove', (e) => {
       var x = e.clientX;
-      x =  x / self.container.offsetWidth;
-      self.delimiter = x
+      x =  x / this.container.offsetWidth;
+      this.delimiter = x
     }, false);
 
-    canvas.addEventListener('touchstart', function(e) {
+    canvas.addEventListener('touchstart', (e) => {
       //  nothing
     });
 
-    canvas.addEventListener('touchmove', function(e){
+    canvas.addEventListener('touchmove', (e) => {
       var x = e.touches[0].clientX;
-      x = x / self.container.offsetWidth;
+      x = x / this.container.offsetWidth;
 
-      self.delimiter = x
+      this.delimiter = x
 
     }, false);
 
 
-    self.uTimeout = Math.random();
-    window.globalTimeout = self.uTimeout;
+    this.uTimeout = Math.random();
+    window.globalTimeout = this.uTimeout;
     return canvas;
-  },
+  }
 
 
-  timerCallback: function() {
-    var self = this;
+  timerCallback() {
 
-    if(self.uTimeout != window.globalTimeout) {
+    if(this.uTimeout != window.globalTimeout) {
       console.log("//kthxby");
       return;
     }
 
-    self.computeFrame();
-    requestAnimationFrame(self.timerCallback);
-  },
+    this.computeFrame();
+    requestAnimationFrame(this.timerCallback);
+  }
 
-  computeFrame: function() {
-    var self = this;
-    var gl = self.gl;
+  computeFrame() {
+    var gl = this.gl;
     gl.clear(gl.COLOR_BUFFER_BIT);
     gl.activeTexture(gl.TEXTURE0);
-    gl.bindTexture(gl.TEXTURE_2D, self.tex);
+    gl.bindTexture(gl.TEXTURE_2D, this.tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, this.video);
    
 
-    var half = (self.video_width /2);
-    var x = Math.max( 1, Math.min(half -1,   half * self.delimiter));
+    var half = (this.video_width /2);
+    var x = Math.max( 1, Math.min(half -1,   half * this.delimiter));
 
-    var xPos = x/self.video_width*2;
+    var xPos = x/this.video_width*2;
 
-    var xUniform = gl.getUniformLocation(self.shaderProgram, "xFactor");
+    var xUniform = gl.getUniformLocation(this.shaderProgram, "xFactor");
     gl.uniform1f(xUniform, xPos);
 
-    var xUniform = gl.getUniformLocation(self.shaderProgram, "imgFac");
+    var xUniform = gl.getUniformLocation(this.shaderProgram, "imgFac");
     gl.uniform1f(xUniform, 0);
 
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, self.vx);
-    gl.vertexAttribPointer(self.vx_ptr, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vx);
+    gl.vertexAttribPointer(this.vx_ptr, 2, gl.FLOAT, false, 0, 0);
 
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, self.ix);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ix);
     gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
 
-    var xUniform = gl.getUniformLocation(self.shaderProgram, "xFactor");
+    var xUniform = gl.getUniformLocation(this.shaderProgram, "xFactor");
     gl.uniform1f(xUniform, xPos);
 
-    var xUniform = gl.getUniformLocation(self.shaderProgram, "imgFac");
+    var xUniform = gl.getUniformLocation(this.shaderProgram, "imgFac");
     gl.uniform1f(xUniform, 1);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, self.vx);
-    gl.vertexAttribPointer(self.vx_ptr, 2, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vx);
+    gl.vertexAttribPointer(this.vx_ptr, 2, gl.FLOAT, false, 0, 0);
 
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, self.ix);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ix);
     gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
   }
+};
 
-});
+
 
 
 
