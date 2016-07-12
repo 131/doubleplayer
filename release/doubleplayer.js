@@ -1,158 +1,272 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 
-var Class       = require('uclass');
+var Class = require('uclass');
 var DoubleVideo = require('./doublevideo');
 
-
 var DoublePlayer = {
-  start : function(video_url, container) {
+  start: function start(video_url, container) {
     return new DoubleVideo(video_url, container);
   }
 };
 
-
-
-
 module.exports = DoublePlayer;
 
 },{"./doublevideo":2,"uclass":15}],2:[function(require,module,exports){
+
 "use strict";
 
-var Class       = require('uclass');
-var $n          = require('udom/element/create');
+var shaderFs = '\nprecision mediump float;\nuniform sampler2D sm;\nvarying vec2 tx;\n\nvoid main(void) {\n  gl_FragColor=texture2D(sm,tx);\n}\n';
+
+var shaderVs = '\nattribute vec2 vx;\nvarying vec2 tx;\nuniform float xFactor;\nuniform float imgFac;\n\n\nvoid main(void) {\n  float vxx = vx.x * ( 1.0 - xFactor) + xFactor;\n  gl_Position=vec4((vx.x*2.0*xFactor-1.0)*imgFac + (1.0-imgFac)*(vxx*2.0-1.0)  , 1.0-vx.y*2.0, 0 , 1);\n  tx=vec2((vx.x*xFactor/2.0)*imgFac + (1.0-imgFac)*(vxx / 2.0 + 0.5) , vx.y);\n}\n';
+
+var Class = require('uclass');
+var $n = require('udom/element/create');
 var requestAnimationFrame = require('udom/window/requestAnimationFrame');
-
-
+var errcnt = 0;
+var videoready = true;
 
 var DoubleVideo = new Class({
-  Binds : ['prepareCanvas', 'timerCallback', 'computeFrame'],
+    Binds: ['prepareCanvas', 'timerCallback', 'computeFrame', 'initWebGL', 'initBuffers', 'initShaders'],
 
-  container:null,
-  interval:null,
+    container: null,
+    interval: null,
 
-  initialize:function(video_url, container){
+    initialize: function initialize(video_url, container) {
 
-    var self = this, video = $n('video', {loop:true, autoplay:true});
-    console.log('Video src is : ', video_url);
-    
-    this.container = container;
-    var videos = container.getElementsByTagName('video');
+        var self = this,
+            video = $n('video', { loop: true, autoplay: true });
+        console.log('Video src is : ', video_url);
 
-      //pause current video (if any) before looping
-    if (videos.length > 0){
-      videos[0].pause();
-      videos[0].src = '';
-    }
-    video.src = '';
-  
-    this.container.innerHTML = "";
+        this.container = container;
+        var videos = container.getElementsByTagName('video');
 
+        //pause current video (if any) before looping
+        if (videos.length > 0) {
+            videos[0].pause();
+            videos[0].src = '';
+        }
+        video.src = '';
 
-    var ready = false;
+        this.container.innerHTML = "";
 
+        var ready = false;
 
-    video.addEventListener("loadedmetadata", function(){
-        if(ready){
-          console.log('META DATA ALREADY LOADED !');
-          return;
+        video.addEventListener("loadedmetadata", function () {
+
+            video.setAttribute("playsinline", "");
+            video.setAttribute("webkit-playsinline", "");
+
+            if (ready) {
+                console.log('META DATA ALREADY LOADED !');
+                return;
+            }
+
+            console.log("Loadedd metadata");
+
+            ready = true;
+
+            //video.play();
+            self.video = video;
+            self.video.id = "Myvideo";
+            self.video_width = video.videoWidth;
+            self.video_height = video.videoHeight;
+
+            self.prepareCanvas();
+            self.initWebGL();
+            self.initShaders();
+            self.initBuffers();
+            self.timerCallback();
+        });
+
+        //leave this to next tick
+        requestAnimationFrame(function () {
+            video.src = video_url + "#" + Math.random();
+            //alert(video.src);
+            video.play();
+        });
+    },
+
+    initShaders: function initShaders() {
+        var self = this;
+        var gl = self.gl;
+
+        var fragmentShader = this.getShader(gl, shaderFs, gl.FRAGMENT_SHADER);
+        var vertexShader = this.getShader(gl, shaderVs, gl.VERTEX_SHADER);
+
+        self.shaderProgram = gl.createProgram();
+        gl.attachShader(self.shaderProgram, vertexShader);
+        gl.attachShader(self.shaderProgram, fragmentShader);
+        gl.linkProgram(self.shaderProgram);
+
+        if (!gl.getProgramParameter(self.shaderProgram, gl.LINK_STATUS)) {
+            alert("Unable to initialize the shader program: " + gl.getProgramInfoLog(self.shaderProgram));
         }
 
-        console.log("Loadedd metadata");
+        gl.useProgram(self.shaderProgram);
 
-        ready = true;
+        self.vx_ptr = gl.getAttribLocation(self.shaderProgram, "vx");
+        gl.enableVertexAttribArray(self.vx_ptr);
+        gl.uniform1i(gl.getUniformLocation(self.shaderProgram, "sm"), 0);
+    },
 
-        //video.play();
-       self.video  = video;
-       self.video.id = "Myvideo";
-       self.video_width = video.videoWidth;
-       self.video_height = video.videoHeight;
+    getShader: function getShader(gl, theSource, type) {
 
-       self.prepareCanvas();
-    });
-    
+        var shader = gl.createShader(type);
 
- //leave this to next tick
-    requestAnimationFrame(function(){
-      video.src = video_url + "#" + Math.random();
-      //alert(video.src);
-      video.play();
-    });
-  },
+        gl.shaderSource(shader, theSource);
 
-  prepareCanvas: function() {
-    var self = this;
+        gl.compileShader(shader);
 
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+            alert("An error occurred compiling the shaders: " + gl.getShaderInfoLog(shader));
+            return null;
+        }
 
-    var tmp = $n('canvas', {width:self.video_width, height:self.video_height});
-    self.canvas_buffer = tmp.getContext("2d");
+        return shader;
+    },
 
-    self.canvas = $n('canvas', {width:self.video_width / 2, height:self.video_height});
-  
+    initBuffers: function initBuffers() {
 
-    self.canvas.style.width = self.canvas.style.height = '100%';
+        // Create a buffer for the square's vertices.
+        var gl = this.gl;
 
-    self.container.appendChild(self.canvas);
+        this.vx = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.vx);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0, 0, 1, 0, 1, 1, 0, 1]), gl.STATIC_DRAW);
 
-    self.canvas_ctx = self.canvas.getContext("2d");
+        this.ix = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ix);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2, 0, 2, 3]), gl.STATIC_DRAW);
 
-    self.delimiter = 0.5;
-    self.canvas.addEventListener('mousemove', function(e){
-      var x = e.clientX; 
-      x =  x / self.container.offsetWidth;
-      self.delimiter = x
-    }, false);
+        this.tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    },
 
-    self.canvas.addEventListener('touchmove', function(e){
-      var x = e.touches[0].clientX; 
-      x = x / self.container.offsetWidth;
+    initWebGL: function initWebGL() {
+        var self = this;
+        self.gl = null;
 
-      self.delimiter = x
+        try {
+            self.gl = self.canvas.getContext("experimental-webgl");
+        } catch (e) {}
+        // If we don't have a GL context, give up now
+        if (!self.gl) {
+            return alert("Unable to initialize WebGL. Your browser may not support it.");
+        }
 
-    }, false);
+        if (self.gl) {
+            self.gl.clearColor(0.0, 0.0, 0.0, 1.0); // Clear to black, fully opaque
+            self.gl.clearDepth(1.0); // Clear everything
+            self.gl.enable(self.gl.DEPTH_TEST); // Enable depth testing
+            self.gl.depthFunc(self.gl.LEQUAL); // Near things obscure far thingsablished.
+        }
+    },
 
+    prepareCanvas: function prepareCanvas() {
+        var self = this;
+        self.canvas = $n('canvas', { width: self.video_width / 2, height: self.video_height });
 
-    self.uTimeout = Math.random();
-    window.globalTimeout = self.uTimeout;
-    self.timerCallback();
-  },
+        self.canvas.style.width = self.canvas.style.height = '100%';
 
+        self.container.appendChild(self.canvas);
 
-  timerCallback: function() {
-    var self = this;
+        self.delimiter = 0.5;
+        self.canvas.addEventListener('mousemove', function (e) {
+            var x = e.clientX;
+            x = x / self.container.offsetWidth;
+            self.delimiter = x;
+        }, false);
 
-    if(self.uTimeout != window.globalTimeout) {
-      console.log("//kthxby");
-      return; 
+        self.canvas.addEventListener('touchstart', function (e) {
+            //  nothing
+        });
+
+        self.canvas.addEventListener('touchmove', function (e) {
+            var x = e.touches[0].clientX;
+            x = x / self.container.offsetWidth;
+
+            self.delimiter = x;
+        }, false);
+
+        self.uTimeout = Math.random();
+        window.globalTimeout = self.uTimeout;
+    },
+
+    timerCallback: function timerCallback() {
+        var self = this;
+
+        if (self.uTimeout != window.globalTimeout) {
+            console.log("//kthxby");
+            return;
+        }
+
+        self.computeFrame();
+        requestAnimationFrame(self.timerCallback);
+    },
+
+    computeFrame: function computeFrame() {
+        var self = this;
+        var gl = self.gl;
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, self.tex);
+
+        try {
+            // upload the video frame
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, this.video);
+        } catch (e) {
+            // log only the first few errors
+            errcnt++;
+            if (errcnt < 10) console.log(e, "color:red;");else if (errcnt == 10) console.log("...", "color:red;");
+        }
+
+        var half = self.video_width / 2;
+        var x = Math.max(1, Math.min(half - 1, half * self.delimiter));
+
+        var xPos = x / self.video_width * 2;
+
+        var xUniform = gl.getUniformLocation(self.shaderProgram, "xFactor");
+        gl.uniform1f(xUniform, xPos);
+
+        var xUniform = gl.getUniformLocation(self.shaderProgram, "imgFac");
+        gl.uniform1f(xUniform, 0);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, self.vx);
+        gl.vertexAttribPointer(self.vx_ptr, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, self.ix);
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+        var xUniform = gl.getUniformLocation(self.shaderProgram, "xFactor");
+        gl.uniform1f(xUniform, xPos);
+
+        var xUniform = gl.getUniformLocation(self.shaderProgram, "imgFac");
+        gl.uniform1f(xUniform, 1);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, self.vx);
+        gl.vertexAttribPointer(self.vx_ptr, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, self.ix);
+        gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+        //var frame1 = self.canvas_buffer.getImageData(0, 0, x, self.video_height);
+        //var frame2 = self.canvas_buffer.getImageData(half + x , 0, half - x, self.video_height);
+
+        //self.canvas_ctx.putImageData(frame1, 0, 0);
+        //self.canvas_ctx.putImageData(frame2, x, 0);
+        //  self.canvas_ctx.fillRect (x, 0, 2, self.video_height);
     }
 
-    self.computeFrame();
-    requestAnimationFrame(self.timerCallback);
-  },
-
-  computeFrame: function() {
-    var self = this;
-
-    self.canvas_buffer.drawImage(self.video, 0, 0, self.video_width, self.video_height);
-    var half = (self.video_width /2),
-        x = Math.max( 1, Math.min(half -1,   half * self.delimiter));
-
-
-    var frame1 = self.canvas_buffer.getImageData(0, 0, x, self.video_height);
-    var frame2 = self.canvas_buffer.getImageData(half + x , 0, half - x, self.video_height);
-
-    self.canvas_ctx.putImageData(frame1, 0, 0);
-    self.canvas_ctx.putImageData(frame2, x, 0);
-    self.canvas_ctx.fillRect (x, 0, 2, self.video_height);
-    self.canvas_ctx.fillStyle = "rgba(255,255,255, 1)";
-  }
 });
-
-
 
 module.exports = DoubleVideo;
 
-},{"uclass":15,"udom/element/create":19,"udom/window/requestAnimationFrame":20}],3:[function(require,module,exports){
+},{"uclass":15,"udom/element/create":16,"udom/window/requestAnimationFrame":17}],3:[function(require,module,exports){
 var kindOf = require('./kindOf');
 var isPlainObject = require('./isPlainObject');
 var mixIn = require('../object/mixIn');
@@ -628,13 +742,6 @@ var uClass = function(proto){
 
 module.exports = uClass;
 },{"mout/lang/createObject":4,"mout/lang/kindOf":9,"mout/object/hasOwn":12,"mout/object/merge":13,"mout/object/mixIn":14}],16:[function(require,module,exports){
-window.DoublePlayer = require('..');
-
-},{"..":1}],17:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"./hasOwn":18,"dup":10}],18:[function(require,module,exports){
-arguments[4][12][0].apply(exports,arguments)
-},{"dup":12}],19:[function(require,module,exports){
 "use strict";
 
 var forIn = require('mout/object/forIn');
@@ -648,7 +755,7 @@ module.exports = function(tagname, attrs){
 
   return foo;
 }
-},{"mout/object/forIn":17}],20:[function(require,module,exports){
+},{"mout/object/forIn":10}],17:[function(require,module,exports){
 "use strict";
 
 module.exports = (function(){
@@ -660,4 +767,9 @@ module.exports = (function(){
           };
 })();
 
-},{}]},{},[16]);
+},{}],18:[function(require,module,exports){
+'use strict';
+
+window.DoublePlayer = require('..');
+
+},{"..":1}]},{},[18]);
