@@ -17,19 +17,24 @@ module.exports = function(grunt) {
 
   grunt.config('browserify', {
     options : { browserifyOptions : {
+
       //  https://github.com/substack/node-browserify/blob/master/bin/args.js#L71
       detectGlobals : false,
     },},
 
     pack : {
+       options: {
+          transform: [['babelify', {presets: ['es2015']}]]
+        },
       files: {
         'release/doubleplayer.js': ['release/_bootstrap.js']
       }
     }
   });
 
-  
-  grunt.registerTask('pack', ['browserify', 'uglify']);
+
+  //disable uglify.min version as uglify-js do not support ES6 strings
+  grunt.registerTask('pack', ['browserify' ,'uglify']); //, 'uglify'
   grunt.registerTask('default', ['pack']);
 
 
