@@ -1,1 +1,0 @@
-window.DoublePlayer = require('..');

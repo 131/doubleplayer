@@ -25,7 +25,6 @@ var shaderVs = `
   }
 `;
 
-
 var $n          = require('udom/element/create');
 var requestAnimationFrame = require('udom/window/requestAnimationFrame');
 
@@ -36,6 +35,7 @@ class DoubleVideo {
 
     var video = $n('video', {loop:true, autoplay:true});
     console.log('Video src is : ', video_url);
+
 
     this.container = container;
     var videos = container.getElementsByTagName('video');
@@ -94,20 +94,26 @@ class DoubleVideo {
     var vertexShader = this.getShader(gl, shaderVs, gl.VERTEX_SHADER);
 
 
-    this.shaderProgram = gl.createProgram();
-    gl.attachShader(this.shaderProgram, vertexShader);
-    gl.attachShader(this.shaderProgram, fragmentShader);
-    gl.linkProgram(this.shaderProgram);
+    this.videoShaderProgram = gl.createProgram();
+    gl.attachShader(this.videoShaderProgram, vertexShader);
+    gl.attachShader(this.videoShaderProgram, fragmentShader);
+    gl.linkProgram(this.videoShaderProgram);
 
 
-    if (!gl.getProgramParameter(this.shaderProgram, gl.LINK_STATUS))
-      throw ("Unable to initialize the shader program: " + gl.getProgramInfoLog(  this.shaderProgram ));
+    if (!gl.getProgramParameter(this.videoShaderProgram, gl.LINK_STATUS))
+      throw ("Unable to initialize the shader program: " + gl.getProgramInfoLog(  this.videoShaderProgram ));
 
-    gl.useProgram(this.shaderProgram);
 
-    this.vx_ptr = gl.getAttribLocation(this.shaderProgram, "vx");
-    gl.enableVertexAttribArray(this.vx_ptr);
-    gl.uniform1i(gl.getUniformLocation(this.shaderProgram, "sm"), 0);
+    const vertShader = this.getShader(gl, 'void main(void){gl_FragColor=vec4(1,1,1,1);}', gl.FRAGMENT_SHADER);
+    const fragShader = this.getShader(gl, 'attribute vec3 c;void main(void){gl_Position=vec4(c, 1.0);}', gl.VERTEX_SHADER);
+
+    this.vertShader = gl.createProgram();
+
+    gl.attachShader(this.vertShader, vertShader);
+    gl.attachShader(this.vertShader, fragShader);
+    gl.linkProgram(this.vertShader);
+    
+    if (!gl.getProgramParameter(this.vertShader, gl.LINK_STATUS)) throw "Unable to initialize the shader vertShader: " + gl.getProgramInfoLog(this.vertShader);
   }
 
 
@@ -130,8 +136,6 @@ class DoubleVideo {
 
 
   initBuffers(gl) {
-
-    // Create a buffer for the square's vertices.
     this.vx = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vx);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([0,0, 1,0, 1,1, 0,1]), gl.STATIC_DRAW);
@@ -140,6 +144,7 @@ class DoubleVideo {
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ix);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0,1,2, 0,2,3]), gl.STATIC_DRAW);
 
+    this.vertexBuf = gl.createBuffer();
 
     this.tex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
@@ -152,7 +157,6 @@ class DoubleVideo {
 
   initWebGL(canvas){
     var gl = canvas.getContext("experimental-webgl");
-
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.clearDepth(1.0);
     gl.enable(gl.DEPTH_TEST);
@@ -163,34 +167,56 @@ class DoubleVideo {
   prepareCanvas() {
 
     var canvas = $n('canvas', {width:this.video_width / 2, height:this.video_height});
-
     canvas.style.width = canvas.style.height = '100%';
-
     this.container.appendChild(canvas);
 
     this.delimiter = 0.5;
-    canvas.addEventListener('mousemove', (e) => {
-      var x = e.clientX;
-      x =  x / this.container.offsetWidth;
+    var x = 0;
+    var y = 0;
+    var handelMouseMove = (e) => {
+      x = e.clientX / document.body.offsetWidth;
+      y = e.clientY / document.body.offsetHeight;
       this.delimiter = x
-    }, false);
+    }
 
-    canvas.addEventListener('touchstart', (e) => {
-      //  nothing
-    });
-
-    canvas.addEventListener('touchmove', (e) => {
-      var x = e.touches[0].clientX;
-      x = x / this.container.offsetWidth;
-
+    var handelTouchMove = (e) => {
+      x = e.touches[0].clientX / document.body.offsetWidth;
+      y = e.touches[0].clientY / document.body.offsetHeight;
       this.delimiter = x
+    }
 
-    }, false);
+    document.addEventListener('mousemove', handelMouseMove, false);
+    document.addEventListener('touchmove', handelTouchMove, false);
 
+    
+    this.releaseCanva = () => {
+      var gl = this.gl;
+      document.removeEventListener('mousemove', handelMouseMove);
+      document.removeEventListener('touchmove', handelTouchMove);
+      gl.deleteTexture(this.tex);
+      gl.deleteBuffer(this.vx);
+      gl.deleteBuffer(this.ix);
+      gl.deleteBuffer(this.vertexBuf);
+      gl.clearColor(0.0, 0.0, 0.0, 1.0);
+      gl.clearDepth(1.0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      this.video = null;
+      //a.deleteProgram
+      gl = null;
+      if (this.requestId) {
+        window.cancelAnimationFrame(this.requestId);
+        this.requestId = undefined;
+     }
+    }
 
     this.uTimeout = Math.random();
     window.globalTimeout = this.uTimeout;
     return canvas;
+  }
+
+  stop() {
+    if(this.releaseCanva)
+      this.releaseCanva();
   }
 
 
@@ -202,12 +228,18 @@ class DoubleVideo {
     }
 
     this.computeFrame();
-    requestAnimationFrame(this.timerCallback);
+    this.requestId  = requestAnimationFrame(this.timerCallback);
   }
 
   computeFrame() {
     var gl = this.gl;
     gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(this.videoShaderProgram);
+
+    this.vx_ptr = gl.getAttribLocation(this.videoShaderProgram, "vx");
+    gl.enableVertexAttribArray(this.vx_ptr);
+    gl.uniform1i(gl.getUniformLocation(this.videoShaderProgram, "sm"), 0);
+
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, this.video);
@@ -218,10 +250,10 @@ class DoubleVideo {
 
     var xPos = x/this.video_width*2;
 
-    var xUniform = gl.getUniformLocation(this.shaderProgram, "xFactor");
+    var xUniform = gl.getUniformLocation(this.videoShaderProgram, "xFactor");
     gl.uniform1f(xUniform, xPos);
 
-    var xUniform = gl.getUniformLocation(this.shaderProgram, "imgFac");
+    var xUniform = gl.getUniformLocation(this.videoShaderProgram, "imgFac");
     gl.uniform1f(xUniform, 0);
 
 
@@ -232,10 +264,10 @@ class DoubleVideo {
     gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
 
-    var xUniform = gl.getUniformLocation(this.shaderProgram, "xFactor");
+    var xUniform = gl.getUniformLocation(this.videoShaderProgram, "xFactor");
     gl.uniform1f(xUniform, xPos);
 
-    var xUniform = gl.getUniformLocation(this.shaderProgram, "imgFac");
+    var xUniform = gl.getUniformLocation(this.videoShaderProgram, "imgFac");
     gl.uniform1f(xUniform, 1);
 
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vx);
@@ -243,6 +275,22 @@ class DoubleVideo {
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ix);
     gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+    gl.useProgram(this.vertShader);
+
+    
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuf);
+
+    var x = 2 * xPos - 1;
+    var length = 0.01;
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([ -length + x ,1,0.0,  -length + x,-1,0.0,  length + x,-1,0.0 , length + x,-1,0.0,  -length + x,1,0.0,  length + x,1,0.0 ]), gl.STATIC_DRAW);
+
+    const coord = gl.getAttribLocation(this.vertShader, "c");
+    gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);
+    gl.enableVertexAttribArray(coord);
+
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+
   }
 };
 
