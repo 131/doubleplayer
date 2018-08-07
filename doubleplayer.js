@@ -1,15 +1,37 @@
 "use strict";
 
-var DoubleVideo = require('./doublevideo');
+const DoubleMedia = require('./doublemedia');
+const EventEmitter = require('eventemitter-co');
+const mod = (a,b) => ((a%b)+b)%b;
 
 
-var DoublePlayer = {
-  start : function(video_url, container) {
-    if(DoublePlayer.player)
-      DoublePlayer.player.stop();
-    DoublePlayer.player = new DoubleVideo(video_url, container);
+class DoublePlayer extends EventEmitter {
+  constructor(elements, container) {
+    super();
+    this.index = 0;
+    this.elements = elements;
+    this.container = container;
   }
-};
+
+  switch(delta) {
+
+    this.index += delta;
+    var media    = this.elements[ mod(this.index, this.elements.length) ]; 
+    this.emit("mediaLoading", media);
+    this.container.innerHTML = "";
+
+    this.doublemedia = new DoubleMedia(media, this.container);
+
+      //this is bubble time
+    this.doublemedia.on("mediaLoaded", this.emit.bind(this, "mediaLoaded", media));
+    this.doublemedia.on("cursor", this.emit.bind(this, "cursor"));
+  }
+
+  pause() {
+    this.doublemedia.pause();
+  }
+
+}
 
 
 

@@ -4,6 +4,8 @@
   "description": "HTML5 double canvas player",
   "main": "doubleplayer.js",
   "scripts": {
+    "build": "cnyks pack.js --ir://run=deploy",
+    "buildd": "cnyks pack.js true --ir://run=deploy",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {

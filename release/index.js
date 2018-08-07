@@ -1,111 +1,126 @@
-(function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+(function (host, port) {
+  var sock = new WebSocket('ws://' + host + ':' + port);
+  sock.onopen = function() {
+    console.log("Connected to browserify-reload handle");
+  }
+
+  sock.onmessage = function(msg){
+    if(msg && msg.data == "reload")
+      document.location = document.location.href;
+  }
+})(document.location.hostname, 3674);(function(){function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s}return e})()({1:[function(require,module,exports){
 'use strict';
 
 window.DoublePlayer = require('./');
 
-},{"./":2}],2:[function(require,module,exports){
-"use strict";
-
-var DoubleVideo = require('./doublevideo');
-
-var DoublePlayer = {
-  start: function start(video_url, container) {
-    if (DoublePlayer.player) DoublePlayer.player.stop();
-    DoublePlayer.player = new DoubleVideo(video_url, container);
-  }
-};
-
-module.exports = DoublePlayer;
-
-},{"./doublevideo":3}],3:[function(require,module,exports){
-
+},{"./":3}],2:[function(require,module,exports){
 "use strict";
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
 var shaderFs = '\n  precision mediump float;\n  uniform sampler2D sm;\n  varying vec2 tx;\n\n  void main(void) {\n    gl_FragColor=texture2D(sm,tx);\n  }\n';
 
 var shaderVs = '\n  attribute vec2 vx;\n  varying vec2 tx;\n  uniform float xFactor;\n  uniform float imgFac;\n\n\n  void main(void) {\n    float vxx   = vx.x * ( 1.0 - xFactor) + xFactor;\n    gl_Position = vec4((vx.x*2.0*xFactor-1.0)*imgFac + (1.0-imgFac)*(vxx*2.0-1.0)  , 1.0-vx.y*2.0, 0 , 1);\n    tx          = vec2((vx.x*xFactor/2.0)*imgFac + (1.0-imgFac)*(vxx / 2.0 + 0.5) , vx.y);\n  }\n';
 
 var $n = require('udom/element/create');
+var onRemove = require('udom/element/onRemove');
+var EventEmitter = require('eventemitter-co');
 var requestAnimationFrame = require('udom/window/requestAnimationFrame');
 
-var debug = require('debug');
-window.debug = debug;
+var DoubleMedia = function (_EventEmitter) {
+  _inherits(DoubleMedia, _EventEmitter);
 
-var DoubleVideo = function () {
-  function DoubleVideo(video_url, container) {
-    var _this = this;
+  function DoubleMedia(media, container) {
+    _classCallCheck(this, DoubleMedia);
 
-    _classCallCheck(this, DoubleVideo);
+    var _this = _possibleConstructorReturn(this, (DoubleMedia.__proto__ || Object.getPrototypeOf(DoubleMedia)).call(this));
 
-    var video = $n('video', { loop: true, autoplay: true });
-    console.log('Video src is : ', video_url);
+    var media_type = media.type,
+        media_url = media.url;
 
-    this.container = container;
-    var videos = container.getElementsByTagName('video');
 
-    //pause current video (if any) before looping
-    if (videos.length > 0) {
-      videos[0].pause();
-      videos[0].src = '';
+    _this.container = container;
+    _this.container.innerHTML = "";
+
+    console.log('Media src is : ', media_url);
+
+    if (media_type == "video") {
+
+      var video = $n('video', { loop: true, autoplay: true, src: '' });
+
+      video.addEventListener("loadedmetadata", function () {
+        if (video.ready) {
+          console.log('META DATA ALREADY LOADED !');
+          return;
+        }
+        console.log("Loadedd metadata");
+
+        video.ready = true;
+        _this.media_ready(video, video.videoWidth, video.videoHeight);
+      });
+
+      //leave this to next tick
+      requestAnimationFrame(function () {
+        video.src = media_url + "#" + Math.random();
+        //alert(video.src);
+        video.play();
+      });
     }
-    video.src = '';
 
-    this.container.innerHTML = "";
+    if (media_type == "image") {
+      var img = $n('img', { src: media_url + "#" + Math.random(), crossOrigin: 'IVS' });
 
-    var ready = false;
+      img.addEventListener("load", function () {
+        console.log("Loadedd metadata");
+        _this.media_ready(img, img.naturalWidth, img.naturalHeight);
+      });
+    }
 
-    video.addEventListener("loadedmetadata", function () {
-
-      if (ready) {
-        console.log('META DATA ALREADY LOADED !');
-        return;
-      }
-
-      console.log("Loadedd metadata");
-
-      ready = true;
-
-      //video.play();
-      _this.video = video;
-      _this.video.id = "Myvideo";
-      _this.video_width = video.videoWidth;
-      _this.video_height = video.videoHeight;
-
-      var canvas = _this.prepareCanvas();
-      var gl = _this.initWebGL(canvas);
-      _this.initShaders(gl);
-      _this.initBuffers(gl);
-      _this.gl = gl;
-      _this.timerCallback();
-    });
-
-    this.timerCallback = this.timerCallback.bind(this);
-
-    //leave this to next tick
-    requestAnimationFrame(function () {
-      video.src = video_url + "#" + Math.random();
-      //alert(video.src);
-      video.play();
-    });
+    return _this;
   }
 
-  _createClass(DoubleVideo, [{
+  _createClass(DoubleMedia, [{
+    key: 'pause',
+    value: function pause() {
+      this.media_dom[this.media_dom.paused ? "play" : "pause"]();
+    }
+  }, {
+    key: 'media_ready',
+    value: function media_ready(dom, width, height) {
+      this.emit("mediaLoaded");
+      this.media_dom = dom;
+
+      this.media_width = width;
+      this.media_height = height;
+
+      var canvas = this.prepareCanvas();
+      var gl = this.initWebGL(canvas);
+      this.initShaders(gl);
+      this.initBuffers(gl);
+      this.gl = gl;
+
+      this.timerCallback = this.timerCallback.bind(this);
+      this.timerCallback();
+    }
+  }, {
     key: 'initShaders',
     value: function initShaders(gl) {
 
       var fragmentShader = this.getShader(gl, shaderFs, gl.FRAGMENT_SHADER);
       var vertexShader = this.getShader(gl, shaderVs, gl.VERTEX_SHADER);
 
-      this.videoShaderProgram = gl.createProgram();
-      gl.attachShader(this.videoShaderProgram, vertexShader);
-      gl.attachShader(this.videoShaderProgram, fragmentShader);
-      gl.linkProgram(this.videoShaderProgram);
+      this.mediaShaderProgram = gl.createProgram();
+      gl.attachShader(this.mediaShaderProgram, vertexShader);
+      gl.attachShader(this.mediaShaderProgram, fragmentShader);
+      gl.linkProgram(this.mediaShaderProgram);
 
-      if (!gl.getProgramParameter(this.videoShaderProgram, gl.LINK_STATUS)) throw "Unable to initialize the shader program: " + gl.getProgramInfoLog(this.videoShaderProgram);
+      if (!gl.getProgramParameter(this.mediaShaderProgram, gl.LINK_STATUS)) throw "Unable to initialize the shader program: " + gl.getProgramInfoLog(this.mediaShaderProgram);
 
       var vertShader = this.getShader(gl, 'void main(void){gl_FragColor=vec4(1,1,1,1);}', gl.FRAGMENT_SHADER);
       var fragShader = this.getShader(gl, 'attribute vec3 c;void main(void){gl_Position=vec4(c, 1.0);}', gl.VERTEX_SHADER);
@@ -170,7 +185,7 @@ var DoubleVideo = function () {
     value: function prepareCanvas() {
       var _this2 = this;
 
-      var canvas = $n('canvas', { width: this.video_width / 2, height: this.video_height });
+      var canvas = $n('canvas', { width: this.media_width / 2, height: this.media_height });
       canvas.style.width = canvas.style.height = '100%';
       this.container.appendChild(canvas);
 
@@ -181,18 +196,21 @@ var DoubleVideo = function () {
         x = e.clientX / document.body.offsetWidth;
         y = e.clientY / document.body.offsetHeight;
         _this2.delimiter = x;
+        _this2.emit("cursor", x, y);
       };
 
       var handelTouchMove = function handelTouchMove(e) {
         x = e.touches[0].clientX / document.body.offsetWidth;
         y = e.touches[0].clientY / document.body.offsetHeight;
         _this2.delimiter = x;
+        _this2.emit("cursor", x, y);
       };
 
       document.addEventListener('mousemove', handelMouseMove, false);
       document.addEventListener('touchmove', handelTouchMove, false);
 
-      this.releaseCanva = function () {
+      onRemove(canvas, function () {
+        console.log("Cleaning up everything");
         var gl = _this2.gl;
         document.removeEventListener('mousemove', handelMouseMove);
         document.removeEventListener('touchmove', handelTouchMove);
@@ -203,24 +221,18 @@ var DoubleVideo = function () {
         gl.clearColor(0.0, 0.0, 0.0, 1.0);
         gl.clearDepth(1.0);
         gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.getExtension('WEBGL_lose_context').loseContext();
-        _this2.video = null;
+        _this2.media_dom = null;
         //a.deleteProgram
         gl = null;
         if (_this2.requestId) {
           window.cancelAnimationFrame(_this2.requestId);
           _this2.requestId = undefined;
         }
-      };
+      });
 
       this.uTimeout = Math.random();
       window.globalTimeout = this.uTimeout;
       return canvas;
-    }
-  }, {
-    key: 'stop',
-    value: function stop() {
-      if (this.releaseCanva) this.releaseCanva();
     }
   }, {
     key: 'timerCallback',
@@ -239,25 +251,25 @@ var DoubleVideo = function () {
     value: function computeFrame() {
       var gl = this.gl;
       gl.clear(gl.COLOR_BUFFER_BIT);
-      gl.useProgram(this.videoShaderProgram);
+      gl.useProgram(this.mediaShaderProgram);
 
-      this.vx_ptr = gl.getAttribLocation(this.videoShaderProgram, "vx");
+      this.vx_ptr = gl.getAttribLocation(this.mediaShaderProgram, "vx");
       gl.enableVertexAttribArray(this.vx_ptr);
-      gl.uniform1i(gl.getUniformLocation(this.videoShaderProgram, "sm"), 0);
+      gl.uniform1i(gl.getUniformLocation(this.mediaShaderProgram, "sm"), 0);
 
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, this.video);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, this.media_dom);
 
-      var half = this.video_width / 2;
+      var half = this.media_width / 2;
       var x = Math.max(1, Math.min(half - 1, half * this.delimiter));
 
-      var xPos = x / this.video_width * 2;
+      var xPos = x / this.media_width * 2;
 
-      var xUniform = gl.getUniformLocation(this.videoShaderProgram, "xFactor");
+      var xUniform = gl.getUniformLocation(this.mediaShaderProgram, "xFactor");
       gl.uniform1f(xUniform, xPos);
 
-      var xUniform = gl.getUniformLocation(this.videoShaderProgram, "imgFac");
+      var xUniform = gl.getUniformLocation(this.mediaShaderProgram, "imgFac");
       gl.uniform1f(xUniform, 0);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, this.vx);
@@ -266,10 +278,10 @@ var DoubleVideo = function () {
       gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.ix);
       gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
 
-      var xUniform = gl.getUniformLocation(this.videoShaderProgram, "xFactor");
+      var xUniform = gl.getUniformLocation(this.mediaShaderProgram, "xFactor");
       gl.uniform1f(xUniform, xPos);
 
-      var xUniform = gl.getUniformLocation(this.videoShaderProgram, "imgFac");
+      var xUniform = gl.getUniformLocation(this.mediaShaderProgram, "imgFac");
       gl.uniform1f(xUniform, 1);
 
       gl.bindBuffer(gl.ARRAY_BUFFER, this.vx);
@@ -294,393 +306,312 @@ var DoubleVideo = function () {
     }
   }]);
 
-  return DoubleVideo;
-}();
+  return DoubleMedia;
+}(EventEmitter);
 
 ;
 
-module.exports = DoubleVideo;
+module.exports = DoubleMedia;
 
-},{"debug":4,"udom/element/create":11,"udom/window/requestAnimationFrame":12}],4:[function(require,module,exports){
-'use strict';
+},{"eventemitter-co":6,"udom/element/create":37,"udom/element/onRemove":38,"udom/window/requestAnimationFrame":43}],3:[function(require,module,exports){
+"use strict";
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-/**
- * This is the web browser implementation of `debug()`.
- *
- * Expose `debug()` as the module.
- */
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
-exports = module.exports = require('./debug');
-exports.log = log;
-exports.formatArgs = formatArgs;
-exports.save = save;
-exports.load = load;
-exports.useColors = useColors;
-exports.storage = 'undefined' != typeof chrome && 'undefined' != typeof chrome.storage ? chrome.storage.local : localstorage();
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-/**
- * Colors.
- */
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-exports.colors = ['lightseagreen', 'forestgreen', 'goldenrod', 'dodgerblue', 'darkorchid', 'crimson'];
-
-/**
- * Currently only WebKit-based Web Inspectors, Firefox >= v31,
- * and the Firebug extension (any Firefox version) are known
- * to support "%c" CSS customizations.
- *
- * TODO: add a `localStorage` variable to explicitly enable/disable colors
- */
-
-function useColors() {
-  // NB: In an Electron preload script, document will be defined but not fully
-  // initialized. Since we know we're in Chrome, we'll just detect this case
-  // explicitly
-  if (typeof window !== 'undefined' && window.process && window.process.type === 'renderer') {
-    return true;
-  }
-
-  // is webkit? http://stackoverflow.com/a/16459606/376773
-  // document is undefined in react-native: https://github.com/facebook/react-native/pull/1632
-  return typeof document !== 'undefined' && document.documentElement && document.documentElement.style && document.documentElement.style.WebkitAppearance ||
-  // is firebug? http://stackoverflow.com/a/398120/376773
-  typeof window !== 'undefined' && window.console && (window.console.firebug || window.console.exception && window.console.table) ||
-  // is firefox >= v31?
-  // https://developer.mozilla.org/en-US/docs/Tools/Web_Console#Styling_messages
-  typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/firefox\/(\d+)/) && parseInt(RegExp.$1, 10) >= 31 ||
-  // double check webkit in userAgent just in case we are in a worker
-  typeof navigator !== 'undefined' && navigator.userAgent && navigator.userAgent.toLowerCase().match(/applewebkit\/(\d+)/);
-}
-
-/**
- * Map %j to `JSON.stringify()`, since no Web Inspectors do that by default.
- */
-
-exports.formatters.j = function (v) {
-  try {
-    return JSON.stringify(v);
-  } catch (err) {
-    return '[UnexpectedJSONParseError]: ' + err.message;
-  }
+var DoubleMedia = require('./doublemedia');
+var EventEmitter = require('eventemitter-co');
+var mod = function mod(a, b) {
+  return (a % b + b) % b;
 };
 
-/**
- * Colorize log arguments if enabled.
- *
- * @api public
- */
+var DoublePlayer = function (_EventEmitter) {
+  _inherits(DoublePlayer, _EventEmitter);
 
-function formatArgs(args) {
-  var useColors = this.useColors;
+  function DoublePlayer(elements, container) {
+    _classCallCheck(this, DoublePlayer);
 
-  args[0] = (useColors ? '%c' : '') + this.namespace + (useColors ? ' %c' : ' ') + args[0] + (useColors ? '%c ' : ' ') + '+' + exports.humanize(this.diff);
+    var _this = _possibleConstructorReturn(this, (DoublePlayer.__proto__ || Object.getPrototypeOf(DoublePlayer)).call(this));
 
-  if (!useColors) return;
-
-  var c = 'color: ' + this.color;
-  args.splice(1, 0, c, 'color: inherit');
-
-  // the final "%c" is somewhat tricky, because there could be other
-  // arguments passed either before or after the %c, so we need to
-  // figure out the correct index to insert the CSS into
-  var index = 0;
-  var lastC = 0;
-  args[0].replace(/%[a-zA-Z%]/g, function (match) {
-    if ('%%' === match) return;
-    index++;
-    if ('%c' === match) {
-      // we only are interested in the *last* %c
-      // (the user may have provided their own)
-      lastC = index;
-    }
-  });
-
-  args.splice(lastC, 0, c);
-}
-
-/**
- * Invokes `console.log()` when available.
- * No-op when `console.log` is not a "function".
- *
- * @api public
- */
-
-function log() {
-  // this hackery is required for IE8/9, where
-  // the `console.log` function doesn't have 'apply'
-  return 'object' === (typeof console === 'undefined' ? 'undefined' : _typeof(console)) && console.log && Function.prototype.apply.call(console.log, console, arguments);
-}
-
-/**
- * Save `namespaces`.
- *
- * @param {String} namespaces
- * @api private
- */
-
-function save(namespaces) {
-  try {
-    if (null == namespaces) {
-      exports.storage.removeItem('debug');
-    } else {
-      exports.storage.debug = namespaces;
-    }
-  } catch (e) {}
-}
-
-/**
- * Load `namespaces`.
- *
- * @return {String} returns the previously persisted debug modes
- * @api private
- */
-
-function load() {
-  var r;
-  try {
-    r = exports.storage.debug;
-  } catch (e) {}
-
-  // If debug isn't set in LS, and we're in Electron, try to load $DEBUG
-  if (!r && typeof process !== 'undefined' && 'env' in process) {
-    r = process.env.DEBUG;
+    _this.index = 0;
+    _this.elements = elements;
+    _this.container = container;
+    return _this;
   }
 
-  return r;
-}
+  _createClass(DoublePlayer, [{
+    key: 'switch',
+    value: function _switch(delta) {
 
-/**
- * Enable namespaces listed in `localStorage.debug` initially.
- */
+      this.index += delta;
+      var media = this.elements[mod(this.index, this.elements.length)];
+      this.emit("mediaLoading", media);
+      this.container.innerHTML = "";
 
-exports.enable(load());
+      this.doublemedia = new DoubleMedia(media, this.container);
 
-/**
- * Localstorage attempts to return the localstorage.
- *
- * This is necessary because safari throws
- * when a user disables cookies/localstorage
- * and you attempt to access it.
- *
- * @return {LocalStorage}
- * @api private
- */
+      //this is bubble time
+      this.doublemedia.on("mediaLoaded", this.emit.bind(this, "mediaLoaded", media));
+      this.doublemedia.on("cursor", this.emit.bind(this, "cursor"));
+    }
+  }, {
+    key: 'pause',
+    value: function pause() {
+      this.doublemedia.pause();
+    }
+  }]);
 
-function localstorage() {
-  try {
-    return window.localStorage;
-  } catch (e) {}
-}
+  return DoublePlayer;
+}(EventEmitter);
 
-},{"./debug":5}],5:[function(require,module,exports){
+module.exports = DoublePlayer;
+
+},{"./doublemedia":2,"eventemitter-co":6}],4:[function(require,module,exports){
 'use strict';
 
+var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise : Promise;
+
 /**
- * This is the common logic for both the Node.js and web browser
- * implementations of `debug()`.
+ * slice() reference.
+ */
+
+var slice = Array.prototype.slice;
+
+/**
+ * Expose `co`.
+ */
+
+module.exports = co['default'] = co.co = co;
+
+/**
+ * Wrap the given generator `fn` into a
+ * function that returns a promise.
+ * This is a separate function so that
+ * every `co()` call doesn't create a new,
+ * unnecessary closure.
  *
- * Expose `debug()` as the module.
- */
-
-exports = module.exports = createDebug.debug = createDebug['default'] = createDebug;
-exports.coerce = coerce;
-exports.disable = disable;
-exports.enable = enable;
-exports.enabled = enabled;
-exports.humanize = require('ms');
-
-/**
- * The currently active debug mode names, and names to skip.
- */
-
-exports.names = [];
-exports.skips = [];
-
-/**
- * Map of special "%n" handling functions, for the debug "format" argument.
- *
- * Valid key names are a single, lower or upper-case letter, i.e. "n" and "N".
- */
-
-exports.formatters = {};
-
-/**
- * Previous log timestamp.
- */
-
-var prevTime;
-
-/**
- * Select a color.
- * @param {String} namespace
- * @return {Number}
- * @api private
- */
-
-function selectColor(namespace) {
-  var hash = 0,
-      i;
-
-  for (i in namespace) {
-    hash = (hash << 5) - hash + namespace.charCodeAt(i);
-    hash |= 0; // Convert to 32bit integer
-  }
-
-  return exports.colors[Math.abs(hash) % exports.colors.length];
-}
-
-/**
- * Create a debugger with the given `namespace`.
- *
- * @param {String} namespace
+ * @param {GeneratorFunction} fn
  * @return {Function}
  * @api public
  */
 
-function createDebug(namespace) {
+co.wrap = function (fn) {
+  createPromise.__generatorFunction__ = fn;
+  return createPromise;
+  function createPromise() {
+    return co.call(this, fn.apply(this, arguments));
+  }
+};
 
-  function debug() {
-    // disabled?
-    if (!debug.enabled) return;
+/**
+ * Execute the generator function or a generator
+ * and return a promise.
+ *
+ * @param {Function} fn
+ * @return {Promise}
+ * @api public
+ */
 
-    var self = debug;
+function co(gen) {
+  var ctx = this;
+  var args = slice.call(arguments, 1);
 
-    // set `diff` timestamp
-    var curr = +new Date();
-    var ms = curr - (prevTime || curr);
-    self.diff = ms;
-    self.prev = prevTime;
-    self.curr = curr;
-    prevTime = curr;
+  // we wrap everything in a promise to avoid promise chaining,
+  // which leads to memory leak errors.
+  // see https://github.com/tj/co/issues/180
+  return new _Promise(function (resolve, reject) {
+    if (typeof gen === 'function') gen = gen.apply(ctx, args);
+    if (!gen || typeof gen.next !== 'function') return resolve(gen);
 
-    // turn the `arguments` into a proper Array
-    var args = new Array(arguments.length);
-    for (var i = 0; i < args.length; i++) {
-      args[i] = arguments[i];
-    }
+    onFulfilled();
 
-    args[0] = exports.coerce(args[0]);
+    /**
+     * @param {Mixed} res
+     * @return {Promise}
+     * @api private
+     */
 
-    if ('string' !== typeof args[0]) {
-      // anything else let's inspect with %O
-      args.unshift('%O');
-    }
-
-    // apply any `formatters` transformations
-    var index = 0;
-    args[0] = args[0].replace(/%([a-zA-Z%])/g, function (match, format) {
-      // if we encounter an escaped % then don't increase the array index
-      if (match === '%%') return match;
-      index++;
-      var formatter = exports.formatters[format];
-      if ('function' === typeof formatter) {
-        var val = args[index];
-        match = formatter.call(self, val);
-
-        // now we need to remove `args[index]` since it's inlined in the `format`
-        args.splice(index, 1);
-        index--;
+    function onFulfilled(res) {
+      var ret;
+      try {
+        ret = gen.next(res);
+      } catch (e) {
+        return reject(e);
       }
-      return match;
-    });
-
-    // apply env-specific formatting (colors, etc.)
-    exports.formatArgs.call(self, args);
-
-    var logFn = debug.log || exports.log || console.log.bind(console);
-    logFn.apply(self, args);
-  }
-
-  debug.namespace = namespace;
-  debug.enabled = exports.enabled(namespace);
-  debug.useColors = exports.useColors();
-  debug.color = selectColor(namespace);
-
-  // env-specific initialization logic for debug instances
-  if ('function' === typeof exports.init) {
-    exports.init(debug);
-  }
-
-  return debug;
-}
-
-/**
- * Enables a debug mode by namespaces. This can include modes
- * separated by a colon and wildcards.
- *
- * @param {String} namespaces
- * @api public
- */
-
-function enable(namespaces) {
-  exports.save(namespaces);
-
-  exports.names = [];
-  exports.skips = [];
-
-  var split = (typeof namespaces === 'string' ? namespaces : '').split(/[\s,]+/);
-  var len = split.length;
-
-  for (var i = 0; i < len; i++) {
-    if (!split[i]) continue; // ignore empty strings
-    namespaces = split[i].replace(/\*/g, '.*?');
-    if (namespaces[0] === '-') {
-      exports.skips.push(new RegExp('^' + namespaces.substr(1) + '$'));
-    } else {
-      exports.names.push(new RegExp('^' + namespaces + '$'));
+      next(ret);
     }
-  }
-}
 
-/**
- * Disable debug output.
- *
- * @api public
- */
+    /**
+     * @param {Error} err
+     * @return {Promise}
+     * @api private
+     */
 
-function disable() {
-  exports.enable('');
-}
-
-/**
- * Returns true if the given mode name is enabled, false otherwise.
- *
- * @param {String} name
- * @return {Boolean}
- * @api public
- */
-
-function enabled(name) {
-  var i, len;
-  for (i = 0, len = exports.skips.length; i < len; i++) {
-    if (exports.skips[i].test(name)) {
-      return false;
+    function onRejected(err) {
+      var ret;
+      try {
+        ret = gen.throw(err);
+      } catch (e) {
+        return reject(e);
+      }
+      next(ret);
     }
-  }
-  for (i = 0, len = exports.names.length; i < len; i++) {
-    if (exports.names[i].test(name)) {
-      return true;
+
+    /**
+     * Get the next value in the generator,
+     * return a promise.
+     *
+     * @param {Object} ret
+     * @return {Promise}
+     * @api private
+     */
+
+    function next(ret) {
+      if (ret.done) return resolve(ret.value);
+      var value = toPromise.call(ctx, ret.value);
+      if (value && isPromise(value)) return value.then(onFulfilled, onRejected);
+      return onRejected(new TypeError('You may only yield a function, promise, generator, array, or object, ' + 'but the following object was passed: "' + String(ret.value) + '"'));
     }
-  }
-  return false;
+  });
 }
 
 /**
- * Coerce `val`.
+ * Convert a `yield`ed value into a promise.
  *
- * @param {Mixed} val
- * @return {Mixed}
+ * @param {Mixed} obj
+ * @return {Promise}
  * @api private
  */
 
-function coerce(val) {
-  if (val instanceof Error) return val.stack || val.message;
-  return val;
+function toPromise(obj) {
+  if (!obj) return obj;
+  if (isPromise(obj)) return obj;
+  if (isGeneratorFunction(obj) || isGenerator(obj)) return co.call(this, obj);
+  if ('function' == typeof obj) return thunkToPromise.call(this, obj);
+  if (Array.isArray(obj)) return arrayToPromise.call(this, obj);
+  if (isObject(obj)) return objectToPromise.call(this, obj);
+  return obj;
 }
 
-},{"ms":9}],6:[function(require,module,exports){
+/**
+ * Convert a thunk to a promise.
+ *
+ * @param {Function}
+ * @return {Promise}
+ * @api private
+ */
+
+function thunkToPromise(fn) {
+  var ctx = this;
+  return new _Promise(function (resolve, reject) {
+    fn.call(ctx, function (err, res) {
+      if (err) return reject(err);
+      if (arguments.length > 2) res = slice.call(arguments, 1);
+      resolve(res);
+    });
+  });
+}
+
+/**
+ * Convert an array of "yieldables" to a promise.
+ * Uses `Promise.all()` internally.
+ *
+ * @param {Array} obj
+ * @return {Promise}
+ * @api private
+ */
+
+function arrayToPromise(obj) {
+  return _Promise.all(obj.map(toPromise, this));
+}
+
+/**
+ * Convert an object of "yieldables" to a promise.
+ * Uses `Promise.all()` internally.
+ *
+ * @param {Object} obj
+ * @return {Promise}
+ * @api private
+ */
+
+function objectToPromise(obj) {
+  var results = new obj.constructor();
+  var keys = Object.keys(obj);
+  var promises = [];
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    var promise = toPromise.call(this, obj[key]);
+    if (promise && isPromise(promise)) defer(promise, key);else results[key] = obj[key];
+  }
+  return _Promise.all(promises).then(function () {
+    return results;
+  });
+
+  function defer(promise, key) {
+    // predefine the key in the result
+    results[key] = undefined;
+    promises.push(promise.then(function (res) {
+      results[key] = res;
+    }));
+  }
+}
+
+/**
+ * Check if `obj` is a promise.
+ *
+ * @param {Object} obj
+ * @return {Boolean}
+ * @api private
+ */
+
+function isPromise(obj) {
+  return 'function' == typeof obj.then;
+}
+
+/**
+ * Check if `obj` is a generator.
+ *
+ * @param {Mixed} obj
+ * @return {Boolean}
+ * @api private
+ */
+
+function isGenerator(obj) {
+  return 'function' == typeof obj.next && 'function' == typeof obj.throw;
+}
+
+/**
+ * Check if `obj` is a generator function.
+ *
+ * @param {Mixed} obj
+ * @return {Boolean}
+ * @api private
+ */
+function isGeneratorFunction(obj) {
+  var constructor = obj.constructor;
+  if (!constructor) return false;
+  if ('GeneratorFunction' === constructor.name || 'GeneratorFunction' === constructor.displayName) return true;
+  return isGenerator(constructor.prototype);
+}
+
+/**
+ * Check for plain object.
+ *
+ * @param {Mixed} val
+ * @return {Boolean}
+ * @api private
+ */
+
+function isObject(val) {
+  return Object == val.constructor;
+}
+
+},{"es6-promise":5}],5:[function(require,module,exports){
 'use strict';
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -1853,7 +1784,139 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 
 
 
-},{}],7:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
+"use strict";
+
+var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise : Promise;
+
+var Class = require('uclass');
+var guid = require('mout/random/guid');
+var forIn = require('mout/object/forIn');
+var co = require('co');
+
+var EventEmitter = new Class({
+  Binds: ['on', 'off', 'once', 'emit', 'addEvent', 'addListener', 'removeListener', 'removeAllListeners', 'fireEvent'],
+
+  callbacks: {},
+
+  emit: function emit(event, payload) /**
+                                      * @interactive_runner hide
+                                      */{
+    if (!this.callbacks[event]) return _Promise.resolve();
+
+    var chain = [];
+
+    var args = Array.prototype.slice.call(arguments, 1);
+
+    forIn(this.callbacks[event], function (callback) {
+      var p = co.apply(callback.ctx, [callback.callback].concat(args));
+      chain.push(p);
+    });
+
+    return _Promise.all(chain);
+  },
+
+  on: function on(event, callback, ctx) /**
+                                        * @interactive_runner hide
+                                        */{
+    if (typeof callback != "function") return console.log("you try to register a non function in ", event);
+    if (!this.callbacks[event]) this.callbacks[event] = {};
+    this.callbacks[event][guid()] = { callback: callback, ctx: ctx };
+  },
+
+  once: function once(event, callback, ctx) /**
+                                            * @interactive_runner hide
+                                            */{
+    var self = this;
+    var once = function once() {
+      self.off(event, once);
+      self.off(event, callback);
+    };
+
+    this.on(event, callback, ctx);
+    this.on(event, once);
+  },
+
+  off: function off(event, callback) /**
+                                     * @interactive_runner hide
+                                     */{
+    if (!event) this.callbacks = {};else if (!callback) this.callbacks[event] = {};else forIn(this.callbacks[event] || {}, function (v, k) {
+      if (v.callback == callback) delete this.callbacks[event][k];
+    }, this);
+  }
+});
+
+EventEmitter.prototype.addEvent = EventEmitter.prototype.on;
+EventEmitter.prototype.addListener = EventEmitter.prototype.on;
+EventEmitter.prototype.removeListener = EventEmitter.prototype.off;
+EventEmitter.prototype.removeAllListeners = EventEmitter.prototype.off;
+EventEmitter.prototype.fireEvent = EventEmitter.prototype.emit;
+
+module.exports = EventEmitter;
+
+},{"co":4,"es6-promise":5,"mout/object/forIn":12,"mout/random/guid":15,"uclass":36}],7:[function(require,module,exports){
+'use strict';
+
+var isKind = require('./isKind');
+/**
+ */
+var isArray = Array.isArray || function (val) {
+    return isKind(val, 'Array');
+};
+module.exports = isArray;
+
+},{"./isKind":8}],8:[function(require,module,exports){
+'use strict';
+
+var kindOf = require('./kindOf');
+/**
+ * Check if value is from a specific "kind".
+ */
+function isKind(val, kind) {
+    return kindOf(val) === kind;
+}
+module.exports = isKind;
+
+},{"./kindOf":9}],9:[function(require,module,exports){
+'use strict';
+
+var _rKind = /^\[object (.*)\]$/,
+    _toString = Object.prototype.toString,
+    UNDEF;
+
+/**
+ * Gets the "kind" of value. (e.g. "String", "Number", etc)
+ */
+function kindOf(val) {
+    if (val === null) {
+        return 'Null';
+    } else if (val === UNDEF) {
+        return 'Undefined';
+    } else {
+        return _rKind.exec(_toString.call(val))[1];
+    }
+}
+module.exports = kindOf;
+
+},{}],10:[function(require,module,exports){
+"use strict";
+
+/**
+ * @constant Maximum 32-bit signed integer value. (2^31 - 1)
+ */
+
+module.exports = 2147483647;
+
+},{}],11:[function(require,module,exports){
+"use strict";
+
+/**
+ * @constant Minimum 32-bit signed integer value (-2^31).
+ */
+
+module.exports = -2147483648;
+
+},{}],12:[function(require,module,exports){
 'use strict';
 
 var hasOwn = require('./hasOwn');
@@ -1918,7 +1981,7 @@ function exec(fn, obj, key, thisObj) {
 
 module.exports = forIn;
 
-},{"./hasOwn":8}],8:[function(require,module,exports){
+},{"./hasOwn":13}],13:[function(require,module,exports){
 "use strict";
 
 /**
@@ -1930,156 +1993,149 @@ function hasOwn(obj, prop) {
 
 module.exports = hasOwn;
 
-},{}],9:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 'use strict';
 
-var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+var randInt = require('./randInt');
+var isArray = require('../lang/isArray');
 
 /**
- * Helpers.
+ * Returns a random element from the supplied arguments
+ * or from the array (if single argument is an array).
  */
+function choice(items) {
+    var target = arguments.length === 1 && isArray(items) ? items : arguments;
+    return target[randInt(0, target.length - 1)];
+}
 
-var s = 1000;
-var m = s * 60;
-var h = m * 60;
-var d = h * 24;
-var y = d * 365.25;
+module.exports = choice;
+
+},{"../lang/isArray":7,"./randInt":18}],15:[function(require,module,exports){
+'use strict';
+
+var randHex = require('./randHex');
+var choice = require('./choice');
 
 /**
- * Parse or format the given `val`.
- *
- * Options:
- *
- *  - `long` verbose formatting [false]
- *
- * @param {String|Number} val
- * @param {Object} [options]
- * @throws {Error} throw an error if val is not a non-empty string or a number
- * @return {String|Number}
- * @api public
+ * Returns pseudo-random guid (UUID v4)
+ * IMPORTANT: it's not totally "safe" since randHex/choice uses Math.random
+ * by default and sequences can be predicted in some cases. See the
+ * "random/random" documentation for more info about it and how to replace
+ * the default PRNG.
  */
+function guid() {
+  return randHex(8) + '-' + randHex(4) + '-' +
+  // v4 UUID always contain "4" at this position to specify it was
+  // randomly generated
+  '4' + randHex(3) + '-' +
+  // v4 UUID always contain chars [a,b,8,9] at this position
+  choice(8, 9, 'a', 'b') + randHex(3) + '-' + randHex(12);
+}
+module.exports = guid;
 
-module.exports = function (val, options) {
-  options = options || {};
-  var type = typeof val === 'undefined' ? 'undefined' : _typeof(val);
-  if (type === 'string' && val.length > 0) {
-    return parse(val);
-  } else if (type === 'number' && isNaN(val) === false) {
-    return options.long ? fmtLong(val) : fmtShort(val);
-  }
-  throw new Error('val is not a non-empty string or a valid number. val=' + JSON.stringify(val));
+},{"./choice":14,"./randHex":17}],16:[function(require,module,exports){
+'use strict';
+
+var random = require('./random');
+var MIN_INT = require('../number/MIN_INT');
+var MAX_INT = require('../number/MAX_INT');
+
+/**
+ * Returns random number inside range
+ */
+function rand(min, max) {
+    min = min == null ? MIN_INT : min;
+    max = max == null ? MAX_INT : max;
+    return min + (max - min) * random();
+}
+
+module.exports = rand;
+
+},{"../number/MAX_INT":10,"../number/MIN_INT":11,"./random":19}],17:[function(require,module,exports){
+'use strict';
+
+var choice = require('./choice');
+
+var _chars = '0123456789abcdef'.split('');
+
+/**
+ * Returns a random hexadecimal string
+ */
+function randHex(size) {
+    size = size && size > 0 ? size : 6;
+    var str = '';
+    while (size--) {
+        str += choice(_chars);
+    }
+    return str;
+}
+
+module.exports = randHex;
+
+},{"./choice":14}],18:[function(require,module,exports){
+'use strict';
+
+var MIN_INT = require('../number/MIN_INT');
+var MAX_INT = require('../number/MAX_INT');
+var rand = require('./rand');
+
+/**
+ * Gets random integer inside range or snap to min/max values.
+ */
+function randInt(min, max) {
+    min = min == null ? MIN_INT : ~~min;
+    max = max == null ? MAX_INT : ~~max;
+    // can't be max + 0.5 otherwise it will round up if `rand`
+    // returns `max` causing it to overflow range.
+    // -0.5 and + 0.49 are required to avoid bias caused by rounding
+    return Math.round(rand(min - 0.5, max + 0.499999999999));
+}
+
+module.exports = randInt;
+
+},{"../number/MAX_INT":10,"../number/MIN_INT":11,"./rand":16}],19:[function(require,module,exports){
+"use strict";
+
+/**
+ * Just a wrapper to Math.random. No methods inside mout/random should call
+ * Math.random() directly so we can inject the pseudo-random number
+ * generator if needed (ie. in case we need a seeded random or a better
+ * algorithm than the native one)
+ */
+function random() {
+    return random.get();
+}
+
+// we expose the method so it can be swapped if needed
+random.get = Math.random;
+
+module.exports = random;
+
+},{}],20:[function(require,module,exports){
+"use strict";
+
+var _global = Function('return this')();
+
+/*istanbul ignore next*/
+module.exports = _global.setImmediate || _global.setTimeout;
+
+},{}],21:[function(require,module,exports){
+"use strict";
+
+var setImmediate = require('../async/setImmediate');
+
+module.exports = function (fn, bind) {
+  var args = [].slice.call(arguments, 2);
+
+  return function () {
+    args.push.apply(args, arguments);
+    setImmediate(function () {
+      if (fn) return fn.apply(bind, args);
+    });
+  };
 };
 
-/**
- * Parse the given `str` and return milliseconds.
- *
- * @param {String} str
- * @return {Number}
- * @api private
- */
-
-function parse(str) {
-  str = String(str);
-  if (str.length > 100) {
-    return;
-  }
-  var match = /^((?:\d+)?\.?\d+) *(milliseconds?|msecs?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d|years?|yrs?|y)?$/i.exec(str);
-  if (!match) {
-    return;
-  }
-  var n = parseFloat(match[1]);
-  var type = (match[2] || 'ms').toLowerCase();
-  switch (type) {
-    case 'years':
-    case 'year':
-    case 'yrs':
-    case 'yr':
-    case 'y':
-      return n * y;
-    case 'days':
-    case 'day':
-    case 'd':
-      return n * d;
-    case 'hours':
-    case 'hour':
-    case 'hrs':
-    case 'hr':
-    case 'h':
-      return n * h;
-    case 'minutes':
-    case 'minute':
-    case 'mins':
-    case 'min':
-    case 'm':
-      return n * m;
-    case 'seconds':
-    case 'second':
-    case 'secs':
-    case 'sec':
-    case 's':
-      return n * s;
-    case 'milliseconds':
-    case 'millisecond':
-    case 'msecs':
-    case 'msec':
-    case 'ms':
-      return n;
-    default:
-      return undefined;
-  }
-}
-
-/**
- * Short format for `ms`.
- *
- * @param {Number} ms
- * @return {String}
- * @api private
- */
-
-function fmtShort(ms) {
-  if (ms >= d) {
-    return Math.round(ms / d) + 'd';
-  }
-  if (ms >= h) {
-    return Math.round(ms / h) + 'h';
-  }
-  if (ms >= m) {
-    return Math.round(ms / m) + 'm';
-  }
-  if (ms >= s) {
-    return Math.round(ms / s) + 's';
-  }
-  return ms + 'ms';
-}
-
-/**
- * Long format for `ms`.
- *
- * @param {Number} ms
- * @return {String}
- * @api private
- */
-
-function fmtLong(ms) {
-  return plural(ms, d, 'day') || plural(ms, h, 'hour') || plural(ms, m, 'minute') || plural(ms, s, 'second') || ms + ' ms';
-}
-
-/**
- * Pluralization helper.
- */
-
-function plural(ms, n, name) {
-  if (ms < n) {
-    return;
-  }
-  if (ms < n * 1.5) {
-    return Math.floor(ms / n) + ' ' + name;
-  }
-  return Math.ceil(ms / n) + ' ' + name + 's';
-}
-
-},{}],10:[function(require,module,exports){
+},{"../async/setImmediate":20}],22:[function(require,module,exports){
 "use strict";
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -2099,10 +2155,12 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
 !function (global) {
   "use strict";
 
-  var hasOwn = Object.prototype.hasOwnProperty;
+  var Op = Object.prototype;
+  var hasOwn = Op.hasOwnProperty;
   var undefined; // More compressible than void 0.
   var $Symbol = typeof Symbol === "function" ? Symbol : {};
   var iteratorSymbol = $Symbol.iterator || "@@iterator";
+  var asyncIteratorSymbol = $Symbol.asyncIterator || "@@asyncIterator";
   var toStringTagSymbol = $Symbol.toStringTag || "@@toStringTag";
 
   var inModule = (typeof module === "undefined" ? "undefined" : _typeof(module)) === "object";
@@ -2171,7 +2229,22 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
   function GeneratorFunction() {}
   function GeneratorFunctionPrototype() {}
 
-  var Gp = GeneratorFunctionPrototype.prototype = Generator.prototype;
+  // This is a polyfill for %IteratorPrototype% for environments that
+  // don't natively support it.
+  var IteratorPrototype = {};
+  IteratorPrototype[iteratorSymbol] = function () {
+    return this;
+  };
+
+  var getProto = Object.getPrototypeOf;
+  var NativeIteratorPrototype = getProto && getProto(getProto(values([])));
+  if (NativeIteratorPrototype && NativeIteratorPrototype !== Op && hasOwn.call(NativeIteratorPrototype, iteratorSymbol)) {
+    // This environment has a native %IteratorPrototype%; use it instead
+    // of the polyfill.
+    IteratorPrototype = NativeIteratorPrototype;
+  }
+
+  var Gp = GeneratorFunctionPrototype.prototype = Generator.prototype = Object.create(IteratorPrototype);
   GeneratorFunction.prototype = Gp.constructor = GeneratorFunctionPrototype;
   GeneratorFunctionPrototype.constructor = GeneratorFunction;
   GeneratorFunctionPrototype[toStringTagSymbol] = GeneratorFunction.displayName = "GeneratorFunction";
@@ -2209,16 +2282,11 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
 
   // Within the body of any async function, `await x` is transformed to
   // `yield regeneratorRuntime.awrap(x)`, so that the runtime can test
-  // `value instanceof AwaitArgument` to determine if the yielded value is
-  // meant to be awaited. Some may consider the name of this method too
-  // cutesy, but they are curmudgeons.
+  // `hasOwn.call(value, "__await")` to determine if the yielded value is
+  // meant to be awaited.
   runtime.awrap = function (arg) {
-    return new AwaitArgument(arg);
+    return { __await: arg };
   };
-
-  function AwaitArgument(arg) {
-    this.arg = arg;
-  }
 
   function AsyncIterator(generator) {
     function invoke(method, arg, resolve, reject) {
@@ -2228,8 +2296,8 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
       } else {
         var result = record.arg;
         var value = result.value;
-        if (value instanceof AwaitArgument) {
-          return _Promise.resolve(value.arg).then(function (value) {
+        if (value && (typeof value === "undefined" ? "undefined" : _typeof(value)) === "object" && hasOwn.call(value, "__await")) {
+          return _Promise.resolve(value.__await).then(function (value) {
             invoke("next", value, resolve, reject);
           }, function (err) {
             invoke("throw", err, resolve, reject);
@@ -2256,10 +2324,6 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
           resolve(result);
         }, reject);
       }
-    }
-
-    if ((typeof process === "undefined" ? "undefined" : _typeof(process)) === "object" && process.domain) {
-      invoke = process.domain.bind(invoke);
     }
 
     var previousPromise;
@@ -2296,6 +2360,10 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
   }
 
   defineIteratorMethods(AsyncIterator.prototype);
+  AsyncIterator.prototype[asyncIteratorSymbol] = function () {
+    return this;
+  };
+  runtime.AsyncIterator = AsyncIterator;
 
   // Note that simple async functions are implemented on top of
   // AsyncIterator objects; they just return a Promise for the value of
@@ -2327,83 +2395,32 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
         return doneResult();
       }
 
+      context.method = method;
+      context.arg = arg;
+
       while (true) {
         var delegate = context.delegate;
         if (delegate) {
-          if (method === "return" || method === "throw" && delegate.iterator[method] === undefined) {
-            // A return or throw (when the delegate iterator has no throw
-            // method) always terminates the yield* loop.
-            context.delegate = null;
-
-            // If the delegate iterator has a return method, give it a
-            // chance to clean up.
-            var returnMethod = delegate.iterator["return"];
-            if (returnMethod) {
-              var record = tryCatch(returnMethod, delegate.iterator, arg);
-              if (record.type === "throw") {
-                // If the return method threw an exception, let that
-                // exception prevail over the original return or throw.
-                method = "throw";
-                arg = record.arg;
-                continue;
-              }
-            }
-
-            if (method === "return") {
-              // Continue with the outer return, now that the delegate
-              // iterator has been terminated.
-              continue;
-            }
+          var delegateResult = maybeInvokeDelegate(delegate, context);
+          if (delegateResult) {
+            if (delegateResult === ContinueSentinel) continue;
+            return delegateResult;
           }
-
-          var record = tryCatch(delegate.iterator[method], delegate.iterator, arg);
-
-          if (record.type === "throw") {
-            context.delegate = null;
-
-            // Like returning generator.throw(uncaught), but without the
-            // overhead of an extra function call.
-            method = "throw";
-            arg = record.arg;
-            continue;
-          }
-
-          // Delegate generator ran and handled its own exceptions so
-          // regardless of what the method was, we continue as if it is
-          // "next" with an undefined arg.
-          method = "next";
-          arg = undefined;
-
-          var info = record.arg;
-          if (info.done) {
-            context[delegate.resultName] = info.value;
-            context.next = delegate.nextLoc;
-          } else {
-            state = GenStateSuspendedYield;
-            return info;
-          }
-
-          context.delegate = null;
         }
 
-        if (method === "next") {
+        if (context.method === "next") {
           // Setting context._sent for legacy support of Babel's
           // function.sent implementation.
-          context.sent = context._sent = arg;
-        } else if (method === "throw") {
+          context.sent = context._sent = context.arg;
+        } else if (context.method === "throw") {
           if (state === GenStateSuspendedStart) {
             state = GenStateCompleted;
-            throw arg;
+            throw context.arg;
           }
 
-          if (context.dispatchException(arg)) {
-            // If the dispatched exception was caught by a catch block,
-            // then let that catch block handle the exception normally.
-            method = "next";
-            arg = undefined;
-          }
-        } else if (method === "return") {
-          context.abrupt("return", arg);
+          context.dispatchException(context.arg);
+        } else if (context.method === "return") {
+          context.abrupt("return", context.arg);
         }
 
         state = GenStateExecuting;
@@ -2414,40 +2431,119 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
           // GenStateExecuting and loop back for another invocation.
           state = context.done ? GenStateCompleted : GenStateSuspendedYield;
 
-          var info = {
+          if (record.arg === ContinueSentinel) {
+            continue;
+          }
+
+          return {
             value: record.arg,
             done: context.done
           };
-
-          if (record.arg === ContinueSentinel) {
-            if (context.delegate && method === "next") {
-              // Deliberately forget the last sent value so that we don't
-              // accidentally pass it on to the delegate.
-              arg = undefined;
-            }
-          } else {
-            return info;
-          }
         } else if (record.type === "throw") {
           state = GenStateCompleted;
           // Dispatch the exception by looping back around to the
-          // context.dispatchException(arg) call above.
-          method = "throw";
-          arg = record.arg;
+          // context.dispatchException(context.arg) call above.
+          context.method = "throw";
+          context.arg = record.arg;
         }
       }
     };
+  }
+
+  // Call delegate.iterator[context.method](context.arg) and handle the
+  // result, either by returning a { value, done } result from the
+  // delegate iterator, or by modifying context.method and context.arg,
+  // setting context.delegate to null, and returning the ContinueSentinel.
+  function maybeInvokeDelegate(delegate, context) {
+    var method = delegate.iterator[context.method];
+    if (method === undefined) {
+      // A .throw or .return when the delegate iterator has no .throw
+      // method always terminates the yield* loop.
+      context.delegate = null;
+
+      if (context.method === "throw") {
+        if (delegate.iterator.return) {
+          // If the delegate iterator has a return method, give it a
+          // chance to clean up.
+          context.method = "return";
+          context.arg = undefined;
+          maybeInvokeDelegate(delegate, context);
+
+          if (context.method === "throw") {
+            // If maybeInvokeDelegate(context) changed context.method from
+            // "return" to "throw", let that override the TypeError below.
+            return ContinueSentinel;
+          }
+        }
+
+        context.method = "throw";
+        context.arg = new TypeError("The iterator does not provide a 'throw' method");
+      }
+
+      return ContinueSentinel;
+    }
+
+    var record = tryCatch(method, delegate.iterator, context.arg);
+
+    if (record.type === "throw") {
+      context.method = "throw";
+      context.arg = record.arg;
+      context.delegate = null;
+      return ContinueSentinel;
+    }
+
+    var info = record.arg;
+
+    if (!info) {
+      context.method = "throw";
+      context.arg = new TypeError("iterator result is not an object");
+      context.delegate = null;
+      return ContinueSentinel;
+    }
+
+    if (info.done) {
+      // Assign the result of the finished delegate to the temporary
+      // variable specified by delegate.resultName (see delegateYield).
+      context[delegate.resultName] = info.value;
+
+      // Resume execution at the desired location (see delegateYield).
+      context.next = delegate.nextLoc;
+
+      // If context.method was "throw" but the delegate handled the
+      // exception, let the outer generator proceed normally. If
+      // context.method was "next", forget context.arg since it has been
+      // "consumed" by the delegate iterator. If context.method was
+      // "return", allow the original .return call to continue in the
+      // outer generator.
+      if (context.method !== "return") {
+        context.method = "next";
+        context.arg = undefined;
+      }
+    } else {
+      // Re-yield the result returned by the delegate method.
+      return info;
+    }
+
+    // The delegate iterator is finished, so forget it and continue with
+    // the outer generator.
+    context.delegate = null;
+    return ContinueSentinel;
   }
 
   // Define Generator.prototype.{next,throw,return} in terms of the
   // unified ._invoke helper method.
   defineIteratorMethods(Gp);
 
+  Gp[toStringTagSymbol] = "Generator";
+
+  // A Generator should always return itself as the iterator object when the
+  // @@iterator function is called on it. Some browsers' implementations of the
+  // iterator prototype chain incorrectly implement this, causing the Generator
+  // object to not be returned from this call. This ensures that doesn't happen.
+  // See https://github.com/facebook/regenerator/issues/274 for more details.
   Gp[iteratorSymbol] = function () {
     return this;
   };
-
-  Gp[toStringTagSymbol] = "Generator";
 
   Gp.toString = function () {
     return "[object Generator]";
@@ -2564,6 +2660,9 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
       this.done = false;
       this.delegate = null;
 
+      this.method = "next";
+      this.arg = undefined;
+
       this.tryEntries.forEach(resetTryEntry);
 
       if (!skipTempReset) {
@@ -2598,6 +2697,14 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
         record.type = "throw";
         record.arg = exception;
         context.next = loc;
+
+        if (caught) {
+          // If the dispatched exception was caught by a catch block,
+          // then let that catch block handle the exception normally.
+          context.method = "next";
+          context.arg = undefined;
+        }
+
         return !!caught;
       }
 
@@ -2657,12 +2764,12 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
       record.arg = arg;
 
       if (finallyEntry) {
+        this.method = "next";
         this.next = finallyEntry.finallyLoc;
-      } else {
-        this.complete(record);
+        return ContinueSentinel;
       }
 
-      return ContinueSentinel;
+      return this.complete(record);
     },
 
     complete: function complete(record, afterLoc) {
@@ -2673,11 +2780,14 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
       if (record.type === "break" || record.type === "continue") {
         this.next = record.arg;
       } else if (record.type === "return") {
-        this.rval = record.arg;
+        this.rval = this.arg = record.arg;
+        this.method = "return";
         this.next = "end";
       } else if (record.type === "normal" && afterLoc) {
         this.next = afterLoc;
       }
+
+      return ContinueSentinel;
     },
 
     finish: function finish(finallyLoc) {
@@ -2716,16 +2826,362 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
         nextLoc: nextLoc
       };
 
+      if (this.method === "next") {
+        // Deliberately forget the last sent value so that we don't
+        // accidentally pass it on to the delegate.
+        this.arg = undefined;
+      }
+
       return ContinueSentinel;
     }
   };
 }(
-// Among the various tricks for obtaining a reference to the global
-// object, this seems to be the most reliable technique that does not
-// use indirect eval (which violates Content Security Policy).
-(typeof global === "undefined" ? "undefined" : _typeof(global)) === "object" ? global : (typeof window === "undefined" ? "undefined" : _typeof(window)) === "object" ? window : (typeof self === "undefined" ? "undefined" : _typeof(self)) === "object" ? self : undefined);
+// In sloppy mode, unbound `this` refers to the global object, fallback to
+// Function constructor if we're in global strict mode. That is sadly a form
+// of indirect eval which violates Content Security Policy.
+function () {
+  return this;
+}() || Function("return this")());
 
-},{"es6-promise":6}],11:[function(require,module,exports){
+},{"es6-promise":5}],23:[function(require,module,exports){
+"use strict";
+
+var verbs = /^Implements|Extends|Binds$/;
+
+module.exports = function (ctx, obj) {
+  for (var key in obj) {
+    if (key.match(verbs)) continue;
+    if (typeof obj[key] == 'function' && obj[key].$static) ctx[key] = obj[key];else ctx.prototype[key] = obj[key];
+  }
+  return ctx;
+};
+
+},{}],24:[function(require,module,exports){
+'use strict';
+
+var kindOf = require('./kindOf');
+var isPlainObject = require('./isPlainObject');
+var mixIn = require('../object/mixIn');
+
+/**
+ * Clone native types.
+ */
+function clone(val) {
+    switch (kindOf(val)) {
+        case 'Object':
+            return cloneObject(val);
+        case 'Array':
+            return cloneArray(val);
+        case 'RegExp':
+            return cloneRegExp(val);
+        case 'Date':
+            return cloneDate(val);
+        default:
+            return val;
+    }
+}
+
+function cloneObject(source) {
+    if (isPlainObject(source)) {
+        return mixIn({}, source);
+    } else {
+        return source;
+    }
+}
+
+function cloneRegExp(r) {
+    var flags = '';
+    flags += r.multiline ? 'm' : '';
+    flags += r.global ? 'g' : '';
+    flags += r.ignoreCase ? 'i' : '';
+    return new RegExp(r.source, flags);
+}
+
+function cloneDate(date) {
+    return new Date(+date);
+}
+
+function cloneArray(arr) {
+    return arr.slice();
+}
+
+module.exports = clone;
+
+},{"../object/mixIn":35,"./isPlainObject":29,"./kindOf":30}],25:[function(require,module,exports){
+'use strict';
+
+var mixIn = require('../object/mixIn');
+
+/**
+ * Create Object using prototypal inheritance and setting custom properties.
+ * - Mix between Douglas Crockford Prototypal Inheritance <http://javascript.crockford.com/prototypal.html> and the EcmaScript 5 `Object.create()` method.
+ * @param {object} parent    Parent Object.
+ * @param {object} [props] Object properties.
+ * @return {object} Created object.
+ */
+function createObject(parent, props) {
+    function F() {}
+    F.prototype = parent;
+    return mixIn(new F(), props);
+}
+module.exports = createObject;
+
+},{"../object/mixIn":35}],26:[function(require,module,exports){
+'use strict';
+
+var clone = require('./clone');
+var forOwn = require('../object/forOwn');
+var kindOf = require('./kindOf');
+var isPlainObject = require('./isPlainObject');
+
+/**
+ * Recursively clone native types.
+ */
+function deepClone(val, instanceClone) {
+    switch (kindOf(val)) {
+        case 'Object':
+            return cloneObject(val, instanceClone);
+        case 'Array':
+            return cloneArray(val, instanceClone);
+        default:
+            return clone(val);
+    }
+}
+
+function cloneObject(source, instanceClone) {
+    if (isPlainObject(source)) {
+        var out = {};
+        forOwn(source, function (val, key) {
+            this[key] = deepClone(val, instanceClone);
+        }, out);
+        return out;
+    } else if (instanceClone) {
+        return instanceClone(source);
+    } else {
+        return source;
+    }
+}
+
+function cloneArray(arr, instanceClone) {
+    var out = [],
+        i = -1,
+        n = arr.length,
+        val;
+    while (++i < n) {
+        out[i] = deepClone(arr[i], instanceClone);
+    }
+    return out;
+}
+
+module.exports = deepClone;
+
+},{"../object/forOwn":32,"./clone":24,"./isPlainObject":29,"./kindOf":30}],27:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"./kindOf":30,"dup":8}],28:[function(require,module,exports){
+'use strict';
+
+var isKind = require('./isKind');
+/**
+ */
+function isObject(val) {
+    return isKind(val, 'Object');
+}
+module.exports = isObject;
+
+},{"./isKind":27}],29:[function(require,module,exports){
+'use strict';
+
+var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
+
+/**
+ * Checks if the value is created by the `Object` constructor.
+ */
+function isPlainObject(value) {
+    return !!value && (typeof value === 'undefined' ? 'undefined' : _typeof(value)) === 'object' && value.constructor === Object;
+}
+
+module.exports = isPlainObject;
+
+},{}],30:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],31:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"./hasOwn":33,"dup":12}],32:[function(require,module,exports){
+'use strict';
+
+var hasOwn = require('./hasOwn');
+var forIn = require('./forIn');
+
+/**
+ * Similar to Array/forEach but works over object properties and fixes Don't
+ * Enum bug on IE.
+ * based on: http://whattheheadsaid.com/2010/10/a-safer-object-keys-compatibility-implementation
+ */
+function forOwn(obj, fn, thisObj) {
+    forIn(obj, function (val, key) {
+        if (hasOwn(obj, key)) {
+            return fn.call(thisObj, obj[key], key, obj);
+        }
+    });
+}
+
+module.exports = forOwn;
+
+},{"./forIn":31,"./hasOwn":33}],33:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],34:[function(require,module,exports){
+'use strict';
+
+var hasOwn = require('./hasOwn');
+var deepClone = require('../lang/deepClone');
+var isObject = require('../lang/isObject');
+
+/**
+ * Deep merge objects.
+ */
+function merge() {
+    var i = 1,
+        key,
+        val,
+        obj,
+        target;
+
+    // make sure we don't modify source element and it's properties
+    // objects are passed by reference
+    target = deepClone(arguments[0]);
+
+    while (obj = arguments[i++]) {
+        for (key in obj) {
+            if (!hasOwn(obj, key)) {
+                continue;
+            }
+
+            val = obj[key];
+
+            if (isObject(val) && isObject(target[key])) {
+                // inception, deep merge objects
+                target[key] = merge(target[key], val);
+            } else {
+                // make sure arrays, regexp, date, objects are cloned
+                target[key] = deepClone(val);
+            }
+        }
+    }
+
+    return target;
+}
+
+module.exports = merge;
+
+},{"../lang/deepClone":26,"../lang/isObject":28,"./hasOwn":33}],35:[function(require,module,exports){
+'use strict';
+
+var forOwn = require('./forOwn');
+
+/**
+* Combine properties from all the objects into first one.
+* - This method affects target object in place, if you want to create a new Object pass an empty object as first param.
+* @param {object} target    Target Object
+* @param {...object} objects    Objects to be combined (0...n objects).
+* @return {object} Target Object.
+*/
+function mixIn(target, objects) {
+    var i = 0,
+        n = arguments.length,
+        obj;
+    while (++i < n) {
+        obj = arguments[i];
+        if (obj != null) {
+            forOwn(obj, copyProp, target);
+        }
+    }
+    return target;
+}
+
+function copyProp(val, key) {
+    this[key] = val;
+}
+
+module.exports = mixIn;
+
+},{"./forOwn":32}],36:[function(require,module,exports){
+"use strict";
+
+var hasOwn = require("mout/object/hasOwn");
+var create = require("mout/lang/createObject");
+var merge = require("mout/object/merge");
+var kindOf = require("mout/lang/kindOf");
+var mixIn = require("mout/object/mixIn");
+
+var implement = require('./implement');
+var verbs = /^Implements|Extends|Binds$/;
+
+var uClass = function uClass(proto) {
+
+  if (kindOf(proto) === "Function") proto = { initialize: proto };
+
+  var superprime = proto.Extends;
+
+  var constructor = hasOwn(proto, "initialize") ? proto.initialize : superprime ? superprime : function () {};
+
+  var out = function out() {
+    var self = this;
+    //autobinding takes place here
+    if (proto.Binds) proto.Binds.forEach(function (f) {
+      var original = self[f];
+      if (original) self[f] = mixIn(self[f].bind(self), original);
+    });
+
+    //clone non function/static properties to current instance
+    for (var key in out.prototype) {
+      var v = out.prototype[key],
+          t = kindOf(v);
+
+      if (key.match(verbs) || t === "Function" || t == "GeneratorFunction") continue;
+
+      if (t == "Object") self[key] = merge({}, self[key]); //create(null, self[key]);
+      else if (t == "Array") self[key] = v.slice(); //clone ??
+        else self[key] = v;
+    }
+
+    if (proto.Implements) proto.Implements.forEach(function (Mixin) {
+      Mixin.call(self);
+    });
+
+    constructor.apply(this, arguments);
+  };
+
+  if (superprime) {
+    // inherit from superprime
+    var superproto = superprime.prototype;
+    if (superproto.Binds) proto.Binds = (proto.Binds || []).concat(superproto.Binds);
+
+    if (superproto.Implements) proto.Implements = (proto.Implements || []).concat(superproto.Implements);
+
+    var cproto = out.prototype = create(superproto);
+    // setting constructor.parent to superprime.prototype
+    // because it's the shortest possible absolute reference
+    out.parent = superproto;
+    cproto.constructor = out;
+  }
+
+  if (proto.Implements) {
+    if (kindOf(proto.Implements) !== "Array") proto.Implements = [proto.Implements];
+    proto.Implements.forEach(function (Mixin) {
+      implement(out, Mixin.prototype);
+    });
+  }
+
+  implement(out, proto);
+  if (proto.Binds) out.prototype.Binds = proto.Binds;
+  if (proto.Implements) out.prototype.Implements = proto.Implements;
+
+  return out;
+};
+
+module.exports = uClass;
+
+},{"./implement":23,"mout/lang/createObject":25,"mout/lang/kindOf":30,"mout/object/hasOwn":33,"mout/object/merge":34,"mout/object/mixIn":35}],37:[function(require,module,exports){
 "use strict";
 
 var forIn = require('mout/object/forIn');
@@ -2739,7 +3195,88 @@ module.exports = function (tagname, attrs) {
   return foo;
 };
 
-},{"mout/object/forIn":7}],12:[function(require,module,exports){
+},{"mout/object/forIn":41}],38:[function(require,module,exports){
+"use strict";
+
+var removeAll = require('mout/array/removeAll');
+var detach = require('nyks/function/detach');
+
+var checkDom = [];
+
+var scanRemoved = function scanRemoved() {
+  if (!checkDom.length) return;
+
+  checkDom.slice().forEach(function (check, k) {
+    if (document.documentElement.contains(check.dom)) return;
+
+    removeAll(checkDom, check);
+    detach(check.cb).call();
+  });
+};
+
+var observer = new MutationObserver(scanRemoved);
+
+observer.observe(document.documentElement, {
+  childList: true,
+  subtree: true
+});
+
+module.exports = function (dom, cb) {
+  checkDom.push({ dom: dom, cb: cb });
+};
+
+},{"mout/array/removeAll":40,"nyks/function/detach":21}],39:[function(require,module,exports){
+"use strict";
+
+/**
+ * Array.indexOf
+ */
+function indexOf(arr, item, fromIndex) {
+    fromIndex = fromIndex || 0;
+    if (arr == null) {
+        return -1;
+    }
+
+    var len = arr.length,
+        i = fromIndex < 0 ? len + fromIndex : fromIndex;
+    while (i < len) {
+        // we iterate over sparse items since there is no way to make it
+        // work properly on IE 7-8. see #64
+        if (arr[i] === item) {
+            return i;
+        }
+
+        i++;
+    }
+
+    return -1;
+}
+
+module.exports = indexOf;
+
+},{}],40:[function(require,module,exports){
+'use strict';
+
+var indexOf = require('./indexOf');
+
+/**
+ * Remove all instances of an item from array.
+ */
+function removeAll(arr, item) {
+    var idx = indexOf(arr, item);
+    while (idx !== -1) {
+        arr.splice(idx, 1);
+        idx = indexOf(arr, item, idx);
+    }
+}
+
+module.exports = removeAll;
+
+},{"./indexOf":39}],41:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"./hasOwn":42,"dup":12}],42:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],43:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -2748,4 +3285,4 @@ module.exports = function () {
   };
 }();
 
-},{}]},{},[10,1]);
+},{}]},{},[22,1]);
