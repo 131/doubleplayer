@@ -16,7 +16,6 @@ class DoublePlayer extends EventEmitter {
   switch(delta) {
     this.index += delta;
     this.play(mod(this.index, this.elements.length)); 
- 
   }
 
 
@@ -26,9 +25,20 @@ class DoublePlayer extends EventEmitter {
     this.emit("mediaLoading", media);
     this.container.innerHTML = "";
     this.doublemedia = new DoubleMedia(media, this.container);
-      //this is bubble time
+    //this is bubble time
     this.doublemedia.on("mediaLoaded", this.emit.bind(this, "mediaLoaded", media));
     this.doublemedia.on("cursor", this.emit.bind(this, "cursor"));
+  }
+
+  setBlendMode(blendColor, blendOpacity, blendMode, blendPosition) {
+    if(!this.doublemedia)
+      return;
+
+    this.doublemedia.blendColor    = blendColor;
+    this.doublemedia.blendOpacity  = blendOpacity;
+    this.doublemedia.blendMode     = blendMode;
+    this.doublemedia.blendPosition = blendPosition;
+
   }
  
   pause() {
@@ -36,8 +46,5 @@ class DoublePlayer extends EventEmitter {
   }
 
 }
-
-
-
 
 module.exports = DoublePlayer;

@@ -2,8 +2,9 @@
 'use strict';
 
 window.DoublePlayer = require('./');
+window.BlendHelper = require('./helper');
 
-},{"./":3}],2:[function(require,module,exports){
+},{"./":3,"./helper":4}],2:[function(require,module,exports){
 "use strict";
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -14,9 +15,9 @@ function _possibleConstructorReturn(self, call) { if (!self) { throw new Referen
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var shaderFs = '\n  precision mediump float;\n  uniform sampler2D sm;\n  varying vec2 tx;\n\n  void main(void) {\n    gl_FragColor=texture2D(sm,tx);\n  }\n';
+var shaderFs = '\n\nprecision mediump float;\nuniform sampler2D sm;\nvarying vec2 tx;\nuniform int  mode;\nuniform vec3 shaderBlend;\nuniform float shaderOpacity;\nuniform int blendPosition;\n\nfloat blendAdd(float base, float blend) {\n\treturn min(base+blend,1.0);\n}\n\nvec3 blendAdd(vec3 base, vec3 blend) {\n\treturn min(base+blend,vec3(1.0));\n}\n\nvec3 blendAdd(vec3 base, vec3 blend, float opacity) {\n\treturn (blendAdd(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendAverage(vec3 base, vec3 blend) {\n\treturn (base+blend)/2.0;\n}\n\nvec3 blendAverage(vec3 base, vec3 blend, float opacity) {\n\treturn (blendAverage(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendColorBurn(float base, float blend) {\n\treturn (blend==0.0)?blend:max((1.0-((1.0-base)/blend)),0.0);\n}\n\nvec3 blendColorBurn(vec3 base, vec3 blend) {\n\treturn vec3(blendColorBurn(base.r,blend.r),blendColorBurn(base.g,blend.g),blendColorBurn(base.b,blend.b));\n}\n\nvec3 blendColorBurn(vec3 base, vec3 blend, float opacity) {\n\treturn (blendColorBurn(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendColorDodge(float base, float blend) {\n\treturn (blend==1.0)?blend:min(base/(1.0-blend),1.0);\n}\n\nvec3 blendColorDodge(vec3 base, vec3 blend) {\n\treturn vec3(blendColorDodge(base.r,blend.r),blendColorDodge(base.g,blend.g),blendColorDodge(base.b,blend.b));\n}\n\nvec3 blendColorDodge(vec3 base, vec3 blend, float opacity) {\n\treturn (blendColorDodge(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendDarken(float base, float blend) {\n\treturn min(blend,base);\n}\n\nvec3 blendDarken(vec3 base, vec3 blend) {\n\treturn vec3(blendDarken(base.r,blend.r),blendDarken(base.g,blend.g),blendDarken(base.b,blend.b));\n}\n\nvec3 blendDarken(vec3 base, vec3 blend, float opacity) {\n\treturn (blendDarken(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendDifference(vec3 base, vec3 blend) {\n\treturn abs(base-blend);\n}\n\nvec3 blendDifference(vec3 base, vec3 blend, float opacity) {\n\treturn (blendDifference(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendExclusion(vec3 base, vec3 blend) {\n\treturn base+blend-2.0*base*blend;\n}\n\nvec3 blendExclusion(vec3 base, vec3 blend, float opacity) {\n\treturn (blendExclusion(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendReflect(float base, float blend) {\n\treturn (blend==1.0)?blend:min(base*base/(1.0-blend),1.0);\n}\n\nvec3 blendReflect(vec3 base, vec3 blend) {\n\treturn vec3(blendReflect(base.r,blend.r),blendReflect(base.g,blend.g),blendReflect(base.b,blend.b));\n}\n\nvec3 blendReflect(vec3 base, vec3 blend, float opacity) {\n\treturn (blendReflect(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendGlow(vec3 base, vec3 blend) {\n\treturn blendReflect(blend,base);\n}\n\nvec3 blendGlow(vec3 base, vec3 blend, float opacity) {\n\treturn (blendGlow(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendOverlay(float base, float blend) {\n\treturn base<0.5?(2.0*base*blend):(1.0-2.0*(1.0-base)*(1.0-blend));\n}\n\nvec3 blendOverlay(vec3 base, vec3 blend) {\n\treturn vec3(blendOverlay(base.r,blend.r),blendOverlay(base.g,blend.g),blendOverlay(base.b,blend.b));\n}\n\nvec3 blendOverlay(vec3 base, vec3 blend, float opacity) {\n\treturn (blendOverlay(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendHardLight(vec3 base, vec3 blend) {\n\treturn blendOverlay(blend,base);\n}\n\nvec3 blendHardLight(vec3 base, vec3 blend, float opacity) {\n\treturn (blendHardLight(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendVividLight(float base, float blend) {\n\treturn (blend<0.5)?blendColorBurn(base,(2.0*blend)):blendColorDodge(base,(2.0*(blend-0.5)));\n}\n\nvec3 blendVividLight(vec3 base, vec3 blend) {\n\treturn vec3(blendVividLight(base.r,blend.r),blendVividLight(base.g,blend.g),blendVividLight(base.b,blend.b));\n}\n\nvec3 blendVividLight(vec3 base, vec3 blend, float opacity) {\n\treturn (blendVividLight(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendHardMix(float base, float blend) {\n\treturn (blendVividLight(base,blend)<0.5)?0.0:1.0;\n}\n\nvec3 blendHardMix(vec3 base, vec3 blend) {\n\treturn vec3(blendHardMix(base.r,blend.r),blendHardMix(base.g,blend.g),blendHardMix(base.b,blend.b));\n}\n\nvec3 blendHardMix(vec3 base, vec3 blend, float opacity) {\n\treturn (blendHardMix(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendLighten(float base, float blend) {\n\treturn max(blend,base);\n}\n\nvec3 blendLighten(vec3 base, vec3 blend) {\n\treturn vec3(blendLighten(base.r,blend.r),blendLighten(base.g,blend.g),blendLighten(base.b,blend.b));\n}\n\nvec3 blendLighten(vec3 base, vec3 blend, float opacity) {\n\treturn (blendLighten(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendLinearBurn(float base, float blend) {\n\t// Note : Same implementation as BlendSubtractf\n\treturn max(base+blend-1.0,0.0);\n}\n\nvec3 blendLinearBurn(vec3 base, vec3 blend) {\n\t// Note : Same implementation as BlendSubtract\n\treturn max(base+blend-vec3(1.0),vec3(0.0));\n}\n\nvec3 blendLinearBurn(vec3 base, vec3 blend, float opacity) {\n\treturn (blendLinearBurn(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendLinearDodge(float base, float blend) {\n\t// Note : Same implementation as BlendAddf\n\treturn min(base+blend,1.0);\n}\n\nvec3 blendLinearDodge(vec3 base, vec3 blend) {\n\t// Note : Same implementation as BlendAdd\n\treturn min(base+blend,vec3(1.0));\n}\n\nvec3 blendLinearDodge(vec3 base, vec3 blend, float opacity) {\n\treturn (blendLinearDodge(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendLinearLight(float base, float blend) {\n\treturn blend<0.5?blendLinearBurn(base,(2.0*blend)):blendLinearDodge(base,(2.0*(blend-0.5)));\n}\n\nvec3 blendLinearLight(vec3 base, vec3 blend) {\n\treturn vec3(blendLinearLight(base.r,blend.r),blendLinearLight(base.g,blend.g),blendLinearLight(base.b,blend.b));\n}\n\nvec3 blendLinearLight(vec3 base, vec3 blend, float opacity) {\n\treturn (blendLinearLight(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendMultiply(vec3 base, vec3 blend) {\n\treturn base*blend;\n}\n\nvec3 blendMultiply(vec3 base, vec3 blend, float opacity) {\n\treturn (blendMultiply(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendNegation(vec3 base, vec3 blend) {\n\treturn vec3(1.0)-abs(vec3(1.0)-base-blend);\n}\n\nvec3 blendNegation(vec3 base, vec3 blend, float opacity) {\n\treturn (blendNegation(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendNormal(vec3 base, vec3 blend) {\n\treturn blend;\n}\n\nvec3 blendNormal(vec3 base, vec3 blend, float opacity) {\n\treturn (blendNormal(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendPhoenix(vec3 base, vec3 blend) {\n\treturn min(base,blend)-max(base,blend)+vec3(1.0);\n}\n\nvec3 blendPhoenix(vec3 base, vec3 blend, float opacity) {\n\treturn (blendPhoenix(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendPinLight(float base, float blend) {\n\treturn (blend<0.5)?blendDarken(base,(2.0*blend)):blendLighten(base,(2.0*(blend-0.5)));\n}\n\nvec3 blendPinLight(vec3 base, vec3 blend) {\n\treturn vec3(blendPinLight(base.r,blend.r),blendPinLight(base.g,blend.g),blendPinLight(base.b,blend.b));\n}\n\nvec3 blendPinLight(vec3 base, vec3 blend, float opacity) {\n\treturn (blendPinLight(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendScreen(float base, float blend) {\n\treturn 1.0-((1.0-base)*(1.0-blend));\n}\n\nvec3 blendScreen(vec3 base, vec3 blend) {\n\treturn vec3(blendScreen(base.r,blend.r),blendScreen(base.g,blend.g),blendScreen(base.b,blend.b));\n}\n\nvec3 blendScreen(vec3 base, vec3 blend, float opacity) {\n\treturn (blendScreen(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendSoftLight(float base, float blend) {\n\treturn (blend<0.5)?(2.0*base*blend+base*base*(1.0-2.0*blend)):(sqrt(base)*(2.0*blend-1.0)+2.0*base*(1.0-blend));\n}\n\nvec3 blendSoftLight(vec3 base, vec3 blend) {\n\treturn vec3(blendSoftLight(base.r,blend.r),blendSoftLight(base.g,blend.g),blendSoftLight(base.b,blend.b));\n}\n\nvec3 blendSoftLight(vec3 base, vec3 blend, float opacity) {\n\treturn (blendSoftLight(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat blendSubtract(float base, float blend) {\n\treturn max(base+blend-1.0,0.0);\n}\n\nvec3 blendSubtract(vec3 base, vec3 blend) {\n\treturn max(base+blend-vec3(1.0),vec3(0.0));\n}\n\nvec3 blendSubtract(vec3 base, vec3 blend, float opacity) {\n\treturn (blendSubtract(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nfloat HueToRGB(float f1, float f2, float hue)\n{\n\tif (hue < 0.0)\n\t\thue += 1.0;\n\telse if (hue > 1.0)\n\t\thue -= 1.0;\n\tfloat res;\n\tif ((6.0 * hue) < 1.0)\n\t\tres = f1 + (f2 - f1) * 6.0 * hue;\n\telse if ((2.0 * hue) < 1.0)\n\t\tres = f2;\n\telse if ((3.0 * hue) < 2.0)\n\t\tres = f1 + (f2 - f1) * ((2.0 / 3.0) - hue) * 6.0;\n\telse\n\t\tres = f1;\n\treturn res;\n}\n\nvec3 HSLToRGB(vec3 hsl)\n{\n\tvec3 rgb;\n\t\n\tif (hsl.y == 0.0)\n\t\trgb = vec3(hsl.z); // Luminance\n\telse\n\t{\n\t\tfloat f2;\n\t\t\n\t\tif (hsl.z < 0.5)\n\t\t\tf2 = hsl.z * (1.0 + hsl.y);\n\t\telse\n\t\t\tf2 = (hsl.z + hsl.y) - (hsl.y * hsl.z);\n\t\t\t\n\t\tfloat f1 = 2.0 * hsl.z - f2;\n\t\t\n\t\trgb.r = HueToRGB(f1, f2, hsl.x + (1.0/3.0));\n\t\trgb.g = HueToRGB(f1, f2, hsl.x);\n\t\trgb.b= HueToRGB(f1, f2, hsl.x - (1.0/3.0));\n\t}\n\t\n\treturn rgb;\n}\n\nvec3 RGBToHSL(vec3 color)\n{\n\tvec3 hsl; // init to 0 to avoid warnings ? (and reverse if + remove first part)\n\t\n\tfloat fmin = min(min(color.r, color.g), color.b);    //Min. value of RGB\n\tfloat fmax = max(max(color.r, color.g), color.b);    //Max. value of RGB\n\tfloat delta = fmax - fmin;             //Delta RGB value\n\n\thsl.z = (fmax + fmin) / 2.0; // Luminance\n\n\tif (delta == 0.0)\t\t//This is a gray, no chroma...\n\t{\n\t\thsl.x = 0.0;\t// Hue\n\t\thsl.y = 0.0;\t// Saturation\n\t}\n\telse                                    //Chromatic data...\n\t{\n\t\tif (hsl.z < 0.5)\n\t\t\thsl.y = delta / (fmax + fmin); // Saturation\n\t\telse\n\t\t\thsl.y = delta / (2.0 - fmax - fmin); // Saturation\n\t\t\n\t\tfloat deltaR = (((fmax - color.r) / 6.0) + (delta / 2.0)) / delta;\n\t\tfloat deltaG = (((fmax - color.g) / 6.0) + (delta / 2.0)) / delta;\n\t\tfloat deltaB = (((fmax - color.b) / 6.0) + (delta / 2.0)) / delta;\n\n\t\tif (color.r == fmax )\n\t\t\thsl.x = deltaB - deltaG; // Hue\n\t\telse if (color.g == fmax)\n\t\t\thsl.x = (1.0 / 3.0) + deltaR - deltaB; // Hue\n\t\telse if (color.b == fmax)\n\t\t\thsl.x = (2.0 / 3.0) + deltaG - deltaR; // Hue\n\n\t\tif (hsl.x < 0.0)\n\t\t\thsl.x += 1.0; // Hue\n\t\telse if (hsl.x > 1.0)\n\t\t\thsl.x -= 1.0; // Hue\n\t}\n\n\treturn hsl;\n}\n\n// Hue Blend mode creates the result color by combining the luminance and saturation of the base color with the hue of the blend color.\nvec3 BlendHue(vec3 base, vec3 blend)\n{\n\tvec3 baseHSL = RGBToHSL(base);\n\treturn HSLToRGB(vec3(RGBToHSL(blend).r, baseHSL.g, baseHSL.b));\n}\n\nvec3 BlendHue(vec3 base, vec3 blend, float opacity) {\n\treturn (BlendHue(base, blend) * opacity + base * (1.0 - opacity));\n}\n\n// Saturation Blend mode creates the result color by combining the luminance and hue of the base color with the saturation of the blend color.\nvec3 BlendSaturation(vec3 base, vec3 blend)\n{\n\tvec3 baseHSL = RGBToHSL(base);\n\treturn HSLToRGB(vec3(baseHSL.r, RGBToHSL(blend).g, baseHSL.b));\n}\n\nvec3 BlendSaturation(vec3 base, vec3 blend, float opacity) {\n\treturn (BlendSaturation(base, blend) * opacity + base * (1.0 - opacity));\n}\n\n// Color Mode keeps the brightness of the base color and applies both the hue and saturation of the blend color.\nvec3 BlendColor(vec3 base, vec3 blend)\n{\n\tvec3 blendHSL = RGBToHSL(blend);\n\treturn HSLToRGB(vec3(blendHSL.r, blendHSL.g, RGBToHSL(base).b));\n}\n\nvec3 BlendColor(vec3 base, vec3 blend, float opacity) {\n\treturn (BlendColor(base, blend) * opacity + base * (1.0 - opacity));\n}\n\n// Luminosity Blend mode creates the result color by combining the hue and saturation of the base color with the luminance of the blend color.\nvec3 BlendLuminosity(vec3 base, vec3 blend)\n{\n\tvec3 baseHSL = RGBToHSL(base);\n\treturn HSLToRGB(vec3(baseHSL.r, baseHSL.g, RGBToHSL(blend).b));\n}\n\nvec3 BlendLuminosity(vec3 base, vec3 blend, float opacity) {\n\treturn (BlendLuminosity(base, blend) * opacity + base * (1.0 - opacity));\n}\n\nvec3 blendFunc(int mode, vec3 base, vec3 blend, float opacity) {\n    vec3 returnedValue = base;\n    if(mode == 1) {\n        returnedValue = blendAdd(base, blend, opacity);\n\t} if(mode == 2) {\n      returnedValue = blendAverage(base, blend, opacity);\n    } if(mode == 3) {\n        returnedValue = blendColorBurn(base, blend, opacity);\n    } if(mode == 4) {\n        returnedValue = blendColorDodge(base, blend, opacity);\n    } if(mode == 5) {\n        returnedValue = blendDarken(base, blend, opacity);\n    } if(mode == 6) {\n        returnedValue = blendDifference(base, blend, opacity);\n    } if(mode == 7) {\n        returnedValue = blendExclusion(base, blend, opacity);\n    } if(mode == 8) {\n        returnedValue = blendGlow(base, blend, opacity);\n    } if(mode == 9) {\n        returnedValue = blendHardLight(base, blend, opacity);\n    } if(mode == 10) {\n        returnedValue = blendHardMix(base, blend, opacity);\n    } if(mode == 11) {\n        returnedValue = blendLighten(base, blend, opacity);\n    } if(mode == 12) {\n        returnedValue = blendLinearBurn(base, blend, opacity);\n    } if(mode == 13) {\n        returnedValue = blendLinearDodge(base, blend, opacity);\n    } if(mode == 14) {\n        returnedValue = blendLinearLight(base, blend, opacity);\n    } if(mode == 15) {\n        returnedValue = blendMultiply(base, blend, opacity);\n    } if(mode == 16) {\n        returnedValue = blendNegation(base, blend, opacity);\n    } if(mode == 17) {\n        returnedValue = blendNormal(base, blend, opacity);\n    } if(mode == 18) {\n        returnedValue = blendOverlay(base, blend, opacity);\n    }  if(mode == 19) {\n        returnedValue = blendPhoenix(base, blend, opacity);\n    }  if(mode == 20) {\n        returnedValue = blendPinLight(base, blend, opacity);\n    }  if(mode == 21) {\n        returnedValue = blendReflect(base, blend, opacity);\n    }  if(mode == 22) {\n        returnedValue = blendScreen(base, blend, opacity);\n    } if(mode == 23) {\n        returnedValue = blendSoftLight(base, blend, opacity);\n    } if(mode == 24) {\n        returnedValue = blendSubtract(base, blend, opacity);\n    } if(mode == 25) {\n        returnedValue = blendVividLight(base, blend, opacity);\n    } if(mode == 26) {\n        returnedValue = BlendHue(base, blend, opacity);\n    } if(mode == 27) {\n        returnedValue = BlendSaturation(base, blend, opacity);\n    } if(mode == 28) {\n        returnedValue = BlendColor(base, blend, opacity);\n    } if(mode == 29) {\n        returnedValue = BlendLuminosity(base, blend, opacity);\n    }\n\treturn returnedValue;\n}\n\nvoid main(void) {\n    vec4 test = texture2D(sm,tx);\n    vec3 color = blendFunc(mode, test.rgb, shaderBlend, shaderOpacity);\n\n    if(blendPosition == 0) {\n      gl_FragColor = test;\n    } if(blendPosition == 3) {\n      gl_FragColor = vec4(color, 1.0);\n    } if(blendPosition == 2) {\n      if((0.5 - tx.x) < 0.0) {\n        gl_FragColor = vec4(color, 1.0);;\n      } else {\n          gl_FragColor = test;\n      }\n    } if(blendPosition == 1) {\n      if((0.5 - tx.x) > 0.0) {\n        gl_FragColor = vec4(color, 1.0);;\n      } else {\n          gl_FragColor = test;\n      }\n    }\n}\n';
 
-var shaderVs = '\n  attribute vec2 vx;\n  varying vec2 tx;\n  uniform float xFactor;\n  uniform float imgFac;\n\n\n  void main(void) {\n    float vxx   = vx.x * ( 1.0 - xFactor) + xFactor;\n    gl_Position = vec4((vx.x*2.0*xFactor-1.0)*imgFac + (1.0-imgFac)*(vxx*2.0-1.0)  , 1.0-vx.y*2.0, 0 , 1);\n    tx          = vec2((vx.x*xFactor/2.0)*imgFac + (1.0-imgFac)*(vxx / 2.0 + 0.5) , vx.y);\n  }\n';
+var shaderVs = '\n  attribute vec2 vx;\n  varying   vec2 tx;\n  uniform float xFactor;\n  uniform float imgFac;\n\n\n  void main(void) {\n    float vxx   = vx.x * ( 1.0 - xFactor) + xFactor;\n    gl_Position = vec4((vx.x * 2.0* xFactor - 1.0) * imgFac + (1.0 - imgFac) * (vxx *2.0 - 1.0)  , 1.0 - vx.y * 2.0, 0, 1);\n    tx          = vec2((vx.x*xFactor/2.0)*imgFac + (1.0-imgFac)*(vxx / 2.0 + 0.5) , vx.y);\n  }\n';
 
 var $n = require('udom/element/create');
 var onRemove = require('udom/element/onRemove');
@@ -26,7 +27,7 @@ var requestAnimationFrame = require('udom/window/requestAnimationFrame');
 var DoubleMedia = function (_EventEmitter) {
   _inherits(DoubleMedia, _EventEmitter);
 
-  function DoubleMedia(media, container) {
+  function DoubleMedia(media, container, blendColor, blendOpacity, blendMode, blendPosition) {
     _classCallCheck(this, DoubleMedia);
 
     var _this = _possibleConstructorReturn(this, (DoubleMedia.__proto__ || Object.getPrototypeOf(DoubleMedia)).call(this));
@@ -62,6 +63,11 @@ var DoubleMedia = function (_EventEmitter) {
         video.play();
       });
     }
+
+    _this.blendColor = blendColor || [1, 1, 1];
+    _this.blendOpacity = blendOpacity || 0;
+    _this.blendMode = blendMode || 0;
+    _this.blendPosition = blendPosition || 0;
 
     if (media_type == "image") {
       var img = $n('img', { src: media_url + "#" + Math.random(), crossOrigin: 'IVS' });
@@ -262,6 +268,18 @@ var DoubleMedia = function (_EventEmitter) {
       var xUniform = gl.getUniformLocation(this.mediaShaderProgram, "imgFac");
       gl.uniform1f(xUniform, 0);
 
+      var blend = gl.getUniformLocation(this.mediaShaderProgram, "shaderBlend");
+      gl.uniform3fv(blend, this.blendColor);
+
+      var opacity = gl.getUniformLocation(this.mediaShaderProgram, "shaderOpacity");
+      gl.uniform1f(opacity, this.blendOpacity);
+
+      var mode = gl.getUniformLocation(this.mediaShaderProgram, "mode");
+      gl.uniform1i(mode, this.blendMode);
+
+      var blendPosition = gl.getUniformLocation(this.mediaShaderProgram, "blendPosition");
+      gl.uniform1i(blendPosition, this.blendPosition);
+
       gl.bindBuffer(gl.ARRAY_BUFFER, this.vx);
       gl.vertexAttribPointer(this.vx_ptr, 2, gl.FLOAT, false, 0, 0);
 
@@ -303,7 +321,7 @@ var DoubleMedia = function (_EventEmitter) {
 
 module.exports = DoubleMedia;
 
-},{"eventemitter-co":7,"udom/element/create":26,"udom/element/onRemove":27,"udom/window/requestAnimationFrame":28}],3:[function(require,module,exports){
+},{"eventemitter-co":8,"udom/element/create":27,"udom/element/onRemove":28,"udom/window/requestAnimationFrame":29}],3:[function(require,module,exports){
 "use strict";
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -353,6 +371,16 @@ var DoublePlayer = function (_EventEmitter) {
       this.doublemedia.on("cursor", this.emit.bind(this, "cursor"));
     }
   }, {
+    key: 'setBlendMode',
+    value: function setBlendMode(blendColor, blendOpacity, blendMode, blendPosition) {
+      if (!this.doublemedia) return;
+
+      this.doublemedia.blendColor = blendColor;
+      this.doublemedia.blendOpacity = blendOpacity;
+      this.doublemedia.blendMode = blendMode;
+      this.doublemedia.blendPosition = blendPosition;
+    }
+  }, {
     key: 'pause',
     value: function pause() {
       this.doublemedia.pause();
@@ -364,7 +392,66 @@ var DoublePlayer = function (_EventEmitter) {
 
 module.exports = DoublePlayer;
 
-},{"./doublemedia":2,"eventemitter-co":7}],4:[function(require,module,exports){
+},{"./doublemedia":2,"eventemitter-co":8}],4:[function(require,module,exports){
+'use strict';
+
+module.exports = function (doublePlayer) {
+
+  if (!doublePlayer) return;
+
+  function hexToRgb(hex) {
+    var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return [parseInt(result[1], 16) / 255, parseInt(result[2], 16) / 255, parseInt(result[3], 16) / 255];
+  }
+
+  var div = document.createElement("div");
+  var blendColor = document.createElement("input");
+  blendColor.type = "color";
+  blendColor.value = "#ffffff";
+
+  var blendOpacity = document.createElement("input");
+  blendOpacity.type = "number";
+  blendOpacity.min = "number";
+  blendOpacity.max = "number";
+  blendOpacity.step = "0.05";
+  blendOpacity.value = "0";
+
+  var BLEND_MODES = ['add', 'Average', 'ColorBurn', 'ColorDodge', 'Darken', 'Difference', 'Exclusion', 'Glow', 'HardLight', 'HardMix', 'Lighten', 'LinearBurn', 'LinearDodge', 'LinearLight', 'Multiply', 'Negation', 'Normal', 'Overlay', 'Phoenix', 'PinLight', 'Reflect', 'Screen', 'SoftLight', 'Subtract', 'VividLight', 'Hue', 'Saturation', 'Color', 'Luminosity'];
+  var blendMode = document.createElement("select");
+  BLEND_MODES.forEach(function (mode, index) {
+    var b = document.createElement("option");
+    b.value = index;
+    b.innerHTML = mode;
+    blendMode.appendChild(b);
+  });
+
+  var blendPosition = document.createElement("select");
+  [0, 1, 2, 3].forEach(function (mode, index) {
+    var b = document.createElement("option");
+    b.value = index;
+    b.innerHTML = mode;
+    blendPosition.appendChild(b);
+  });
+
+  div.appendChild(blendColor);
+  div.appendChild(blendOpacity);
+  div.appendChild(blendMode);
+  div.appendChild(blendPosition);
+
+  var blendChange = function blendChange() {
+    doublePlayer.setBlendMode(hexToRgb(blendColor.value), blendOpacity.value, blendMode.value, blendPosition.value);
+  };
+
+  div.style.cssText = 'position:fixed;top:0;left:0;cursor:pointer;opacity:0.9;z-index:10000';
+  blendColor.addEventListener("change", blendChange);
+  blendOpacity.addEventListener("change", blendChange);
+  blendMode.addEventListener("change", blendChange);
+  blendPosition.addEventListener("change", blendChange);
+
+  return div;
+};
+
+},{}],5:[function(require,module,exports){
 "use strict";
 
 module.exports = function (env, methods) {
@@ -378,7 +465,7 @@ module.exports = function (env, methods) {
   return env;
 };
 
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 'use strict';
 
 var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise : Promise;
@@ -618,7 +705,7 @@ function isObject(val) {
   return Object == val.constructor;
 }
 
-},{"es6-promise":6}],6:[function(require,module,exports){
+},{"es6-promise":7}],7:[function(require,module,exports){
 'use strict';
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -1791,7 +1878,7 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 
 
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 "use strict";
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
@@ -1879,7 +1966,7 @@ EventEmitter.prototype.fireEvent = EventEmitter.prototype.emit;
 
 module.exports = EventEmitter;
 
-},{"bindthem":4,"co":5,"es6-promise":6,"mout/object/forIn":15,"mout/random/guid":18}],8:[function(require,module,exports){
+},{"bindthem":5,"co":6,"es6-promise":7,"mout/object/forIn":16,"mout/random/guid":19}],9:[function(require,module,exports){
 "use strict";
 
 /**
@@ -1908,7 +1995,7 @@ function indexOf(arr, item, fromIndex) {
 
 module.exports = indexOf;
 
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 'use strict';
 
 var indexOf = require('./indexOf');
@@ -1926,7 +2013,7 @@ function removeAll(arr, item) {
 
 module.exports = removeAll;
 
-},{"./indexOf":8}],10:[function(require,module,exports){
+},{"./indexOf":9}],11:[function(require,module,exports){
 'use strict';
 
 var isKind = require('./isKind');
@@ -1937,7 +2024,7 @@ var isArray = Array.isArray || function (val) {
 };
 module.exports = isArray;
 
-},{"./isKind":11}],11:[function(require,module,exports){
+},{"./isKind":12}],12:[function(require,module,exports){
 'use strict';
 
 var kindOf = require('./kindOf');
@@ -1949,7 +2036,7 @@ function isKind(val, kind) {
 }
 module.exports = isKind;
 
-},{"./kindOf":12}],12:[function(require,module,exports){
+},{"./kindOf":13}],13:[function(require,module,exports){
 "use strict";
 
 /**
@@ -1960,7 +2047,7 @@ function kindOf(val) {
 }
 module.exports = kindOf;
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 "use strict";
 
 /**
@@ -1969,7 +2056,7 @@ module.exports = kindOf;
 
 module.exports = 2147483647;
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 "use strict";
 
 /**
@@ -1978,7 +2065,7 @@ module.exports = 2147483647;
 
 module.exports = -2147483648;
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 'use strict';
 
 var hasOwn = require('./hasOwn');
@@ -2043,7 +2130,7 @@ function exec(fn, obj, key, thisObj) {
 
 module.exports = forIn;
 
-},{"./hasOwn":16}],16:[function(require,module,exports){
+},{"./hasOwn":17}],17:[function(require,module,exports){
 "use strict";
 
 /**
@@ -2055,7 +2142,7 @@ function hasOwn(obj, prop) {
 
 module.exports = hasOwn;
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 'use strict';
 
 var randInt = require('./randInt');
@@ -2072,7 +2159,7 @@ function choice(items) {
 
 module.exports = choice;
 
-},{"../lang/isArray":10,"./randInt":21}],18:[function(require,module,exports){
+},{"../lang/isArray":11,"./randInt":22}],19:[function(require,module,exports){
 'use strict';
 
 var randHex = require('./randHex');
@@ -2095,7 +2182,7 @@ function guid() {
 }
 module.exports = guid;
 
-},{"./choice":17,"./randHex":20}],19:[function(require,module,exports){
+},{"./choice":18,"./randHex":21}],20:[function(require,module,exports){
 'use strict';
 
 var random = require('./random');
@@ -2113,7 +2200,7 @@ function rand(min, max) {
 
 module.exports = rand;
 
-},{"../number/MAX_INT":13,"../number/MIN_INT":14,"./random":22}],20:[function(require,module,exports){
+},{"../number/MAX_INT":14,"../number/MIN_INT":15,"./random":23}],21:[function(require,module,exports){
 'use strict';
 
 var choice = require('./choice');
@@ -2134,7 +2221,7 @@ function randHex(size) {
 
 module.exports = randHex;
 
-},{"./choice":17}],21:[function(require,module,exports){
+},{"./choice":18}],22:[function(require,module,exports){
 'use strict';
 
 var MIN_INT = require('../number/MIN_INT');
@@ -2155,7 +2242,7 @@ function randInt(min, max) {
 
 module.exports = randInt;
 
-},{"../number/MAX_INT":13,"../number/MIN_INT":14,"./rand":19}],22:[function(require,module,exports){
+},{"../number/MAX_INT":14,"../number/MIN_INT":15,"./rand":20}],23:[function(require,module,exports){
 "use strict";
 
 /**
@@ -2173,7 +2260,7 @@ random.get = Math.random;
 
 module.exports = random;
 
-},{}],23:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 "use strict";
 
 var _global = Function('return this')();
@@ -2181,7 +2268,7 @@ var _global = Function('return this')();
 /*istanbul ignore next*/
 module.exports = _global.setImmediate || _global.setTimeout;
 
-},{}],24:[function(require,module,exports){
+},{}],25:[function(require,module,exports){
 "use strict";
 
 var setImmediate = require('../async/setImmediate');
@@ -2197,7 +2284,7 @@ module.exports = function (fn, bind) {
   };
 };
 
-},{"../async/setImmediate":23}],25:[function(require,module,exports){
+},{"../async/setImmediate":24}],26:[function(require,module,exports){
 "use strict";
 
 var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol" ? function (obj) { return typeof obj; } : function (obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; };
@@ -2843,7 +2930,7 @@ var _Promise = typeof Promise === 'undefined' ? require('es6-promise').Promise :
 // use indirect eval (which violates Content Security Policy).
 (typeof global === "undefined" ? "undefined" : _typeof(global)) === "object" ? global : (typeof window === "undefined" ? "undefined" : _typeof(window)) === "object" ? window : (typeof self === "undefined" ? "undefined" : _typeof(self)) === "object" ? self : undefined);
 
-},{"es6-promise":6}],26:[function(require,module,exports){
+},{"es6-promise":7}],27:[function(require,module,exports){
 "use strict";
 
 var forIn = require('mout/object/forIn');
@@ -2857,7 +2944,7 @@ module.exports = function (tagname, attrs) {
   return foo;
 };
 
-},{"mout/object/forIn":15}],27:[function(require,module,exports){
+},{"mout/object/forIn":16}],28:[function(require,module,exports){
 "use strict";
 
 var removeAll = require('mout/array/removeAll');
@@ -2887,7 +2974,7 @@ module.exports = function (dom, cb) {
   checkDom.push({ dom: dom, cb: cb });
 };
 
-},{"mout/array/removeAll":9,"nyks/function/detach":24}],28:[function(require,module,exports){
+},{"mout/array/removeAll":10,"nyks/function/detach":25}],29:[function(require,module,exports){
 "use strict";
 
 module.exports = function () {
@@ -2896,4 +2983,4 @@ module.exports = function () {
   };
 }();
 
-},{}]},{},[25,1]);
+},{}]},{},[26,1]);
