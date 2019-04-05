@@ -420,7 +420,7 @@ module.exports = function (doublePlayer) {
   var blendMode = document.createElement("select");
   BLEND_MODES.forEach(function (mode, index) {
     var b = document.createElement("option");
-    b.value = index;
+    b.value = index + 1;
     b.innerHTML = mode;
     blendMode.appendChild(b);
   });
