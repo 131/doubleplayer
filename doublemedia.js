@@ -4,7 +4,10 @@ var shaderFs = `
 
 precision mediump float;
 uniform sampler2D sm;
+uniform sampler2D imageBlend;
+
 varying vec2 tx;
+
 uniform int  mode;
 uniform vec3 shaderBlend;
 uniform float shaderOpacity;
@@ -472,26 +475,36 @@ vec3 blendFunc(int mode, vec3 base, vec3 blend, float opacity) {
 }
 
 void main(void) {
-    vec4 test = texture2D(sm,tx);
-    vec3 color = blendFunc(mode, test.rgb, shaderBlend, shaderOpacity);
+    vec4 test = texture2D(sm, tx);
+    vec4 test2 = texture2D(imageBlend ,tx);
 
-    if(blendPosition == 0) {
+    if(test2.r + test2.g + test2.b > 0.7) {
       gl_FragColor = test;
-    } if(blendPosition == 3) {
-      gl_FragColor = vec4(color, 1.0);
-    } if(blendPosition == 2) {
-      if((0.5 - tx.x) < 0.0) {
-        gl_FragColor = vec4(color, 1.0);;
-      } else {
-          gl_FragColor = test;
+    } else {
+
+      vec3 color = blendFunc(mode, test.rgb, shaderBlend, shaderOpacity);
+
+      if(blendPosition == 0) {
+        gl_FragColor = test;
+      } if(blendPosition == 3) {
+        gl_FragColor = vec4(color, 1.0);
+      } if(blendPosition == 2) {
+        if((0.5 - tx.x) < 0.0) {
+          gl_FragColor = vec4(color, 1.0);;
+        } else {
+            gl_FragColor = test;
+        }
+      } if(blendPosition == 1) {
+        if((0.5 - tx.x) > 0.0) {
+          gl_FragColor = vec4(color, 1.0);;
+        } else {
+            gl_FragColor = test;
+        }
       }
-    } if(blendPosition == 1) {
-      if((0.5 - tx.x) > 0.0) {
-        gl_FragColor = vec4(color, 1.0);;
-      } else {
-          gl_FragColor = test;
-      }
+
     }
+
+
 }
 `;
 
@@ -518,9 +531,9 @@ const requestAnimationFrame = require('udom/window/requestAnimationFrame');
 class DoubleMedia extends EventEmitter {
 
 
-  constructor(media, container, blendColor, blendOpacity, blendMode, blendPosition) {
+  constructor(media, container, develMode=false, blendColor, blendOpacity, blendMode, blendPosition, thickness) {
     super();
-    let {type: media_type, url: media_url}  = media;
+    let {type: media_type, url: media_url, blend_image}  = media;
 
     this.container = container;
     this.container.innerHTML = "";
@@ -529,7 +542,7 @@ class DoubleMedia extends EventEmitter {
 
     if(media_type == "video") {
 
-      var video = $n('video', {loop:true, autoplay:true, src : ''});
+      var video = $n('video', {loop:true, autoplay:true, muted:develMode, qsrc : ''});
 
       video.addEventListener("loadedmetadata", () => {
         if(video.ready){
@@ -554,9 +567,17 @@ class DoubleMedia extends EventEmitter {
     this.blendOpacity  = blendOpacity || 0;
     this.blendMode     = blendMode || 0;
     this.blendPosition = blendPosition || 0;
+    this.thickness = thickness || 0.01;
+
+    if(blend_image) {
+      let img = $n('img', {src:blend_image + "#" + Math.random(), crossOrigin : 'IVS'});
+      img.addEventListener("load", () => {
+      });
+      this.imageBlendDom  = img;
+    }
 
     if(media_type == "image") {
-      var img = $n('img', {src:media_url + "#" + Math.random(), crossOrigin : 'IVS'});
+      let img = $n('img', {src:media_url + "#" + Math.random(), crossOrigin : 'IVS'});
 
       img.addEventListener("load", () => {
         console.log("Loadedd metadata");
@@ -653,6 +674,15 @@ class DoubleMedia extends EventEmitter {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S,     gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
+
+    this.tex2 = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.tex2);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T,     gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S,     gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+
   }
 
 
@@ -698,6 +728,7 @@ class DoubleMedia extends EventEmitter {
       document.removeEventListener('mousemove', handelMouseMove);
       document.removeEventListener('touchmove', handelTouchMove);
       gl.deleteTexture(this.tex);
+      gl.deleteTexture(this.tex2);
       gl.deleteBuffer(this.vx);
       gl.deleteBuffer(this.ix);
       gl.deleteBuffer(this.vertexBuf);
@@ -743,7 +774,15 @@ class DoubleMedia extends EventEmitter {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, this.tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, this.media_dom);
-   
+
+
+
+    gl.uniform1i(gl.getUniformLocation(this.mediaShaderProgram, "imageBlend"), 1);
+    gl.activeTexture(gl.TEXTURE1);
+    gl.bindTexture(gl.TEXTURE_2D, this.tex2);
+    this.imageBlendDom ? gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, this.imageBlendDom) :
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, 1, 1, 0, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0])); // black texture if no image
+
 
     var half = (this.media_width /2);
     var x = Math.max( 1, Math.min(half -1,   half * this.delimiter));
@@ -793,8 +832,7 @@ class DoubleMedia extends EventEmitter {
     gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuf);
 
     var x = 2 * xPos - 1;
-    var length = 0.01;
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([ -length + x ,1,0.0,  -length + x,-1,0.0,  length + x,-1,0.0 , length + x,-1,0.0,  -length + x,1,0.0,  length + x,1,0.0 ]), gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([ -this.thickness + x ,1,0.0,  -this.thickness + x,-1,0.0,  this.thickness + x,-1,0.0 , this.thickness + x,-1,0.0,  -this.thickness + x,1,0.0,  this.thickness + x,1,0.0 ]), gl.STATIC_DRAW);
 
     const coord = gl.getAttribLocation(this.vertShader, "c");
     gl.vertexAttribPointer(coord, 3, gl.FLOAT, false, 0, 0);

@@ -19,18 +19,18 @@ class DoublePlayer extends EventEmitter {
   }
 
 
-  play(id) {
+  play(id, develMode) {
     this.index = id;
     var media    = this.elements[this.index]; 
     this.emit("mediaLoading", media);
     this.container.innerHTML = "";
-    this.doublemedia = new DoubleMedia(media, this.container);
+    this.doublemedia = new DoubleMedia(media, this.container, develMode);
     //this is bubble time
     this.doublemedia.on("mediaLoaded", this.emit.bind(this, "mediaLoaded", media));
     this.doublemedia.on("cursor", this.emit.bind(this, "cursor"));
   }
 
-  setBlendMode(blendColor, blendOpacity, blendMode, blendPosition) {
+  setBlendMode(blendColor, blendOpacity, blendMode, blendPosition, thickness) {
     if(!this.doublemedia)
       return;
 
@@ -38,6 +38,8 @@ class DoublePlayer extends EventEmitter {
     this.doublemedia.blendOpacity  = blendOpacity;
     this.doublemedia.blendMode     = blendMode;
     this.doublemedia.blendPosition = blendPosition;
+    this.doublemedia.thickness     = thickness;
+
 
   }
  
